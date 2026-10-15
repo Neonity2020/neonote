@@ -13,6 +13,7 @@ import type {
   UpdateBlockInput,
   UpdatePageInput
 } from '../shared/types'
+import { WELCOME_PAGE_TITLE } from '../shared/types'
 
 const POSITION_STEP = 1024
 
@@ -324,39 +325,93 @@ export function search(query: string): SearchResult[] {
 
 // ---------- Seed ----------
 
+/** Seed blocks for the welcome page. Reused by both the first-run seed and resetWelcomePage(). */
+const WELCOME_SEED_BLOCKS: Array<{ type: BlockType; text: string; checked?: boolean }> = [
+  { type: 'paragraph', text: '这是一个本地优先的块笔记应用,所有数据保存在本机 SQLite 数据库中。' },
+  { type: 'heading1', text: '快速上手' },
+  { type: 'bulletedList', text: '按 Enter 新建一个块' },
+  { type: 'bulletedList', text: '在空块中输入 / 唤起命令菜单,切换块类型' },
+  { type: 'bulletedList', text: '支持 Markdown 快捷输入:试试输入 # 加空格' },
+  { type: 'heading2', text: '支持的块类型' },
+  { type: 'numberedList', text: '段落、一到三级标题' },
+  { type: 'numberedList', text: '无序 / 有序列表' },
+  { type: 'numberedList', text: '待办事项、引用、代码块、分割线' },
+  { type: 'todo', text: '试试勾选这个待办事项', checked: false },
+  { type: 'todo', text: '已完成的事项会显示删除线', checked: true },
+  { type: 'quote', text: '块可以拖动左侧手柄重新排序。' },
+  { type: 'code', text: 'function hello() {\n  console.log("Hello, Notion Clone!")\n}' },
+  { type: 'divider', text: '' },
+  { type: 'paragraph', text: '在左侧边栏可以新建页面、组织层级、搜索全部内容。开始写作吧!' }
+]
+
 function seedIfEmpty(): void {
   const count = (db.prepare('SELECT COUNT(*) AS c FROM pages').get() as { c: number }).c
   if (count > 0) return
 
-  const page = createPage({ title: '欢迎使用 Notion Clone' })
+  const page = createPage({ title: WELCOME_PAGE_TITLE })
   updatePage({ id: page.id, icon: '👋' })
 
-  const seedBlocks: Array<{ type: BlockType; text: string; checked?: boolean }> = [
-    { type: 'paragraph', text: '这是一个本地优先的块笔记应用,所有数据保存在本机 SQLite 数据库中。' },
-    { type: 'heading1', text: '快速上手' },
-    { type: 'bulletedList', text: '按 Enter 新建一个块' },
-    { type: 'bulletedList', text: '在空块中输入 / 唤起命令菜单,切换块类型' },
-    { type: 'bulletedList', text: '支持 Markdown 快捷输入:试试输入 # 加空格' },
-    { type: 'heading2', text: '支持的块类型' },
-    { type: 'numberedList', text: '段落、一到三级标题' },
-    { type: 'numberedList', text: '无序 / 有序列表' },
-    { type: 'numberedList', text: '待办事项、引用、代码块、分割线' },
-    { type: 'todo', text: '试试勾选这个待办事项', checked: false },
-    { type: 'todo', text: '已完成的事项会显示删除线', checked: true },
-    { type: 'quote', text: '块可以拖动左侧手柄重新排序。' },
-    { type: 'code', text: 'function hello() {\n  console.log("Hello, Notion Clone!")\n}' },
-    { type: 'divider', text: '' },
-    { type: 'paragraph', text: '在左侧边栏可以新建页面、组织层级、搜索全部内容。开始写作吧!' }
-  ]
+  seedWelcomeBlocks(page.id)
+}
 
+/** Insert the welcome seed blocks for a given page id, in sequence. */
+function seedWelcomeBlocks(pageId: string): void {
   let lastId: string | null = null
-  for (const seed of seedBlocks) {
+  for (const seed of WELCOME_SEED_BLOCKS) {
     const block = createBlock({
-      pageId: page.id,
+      pageId,
       type: seed.type,
       content: { text: seed.text, checked: seed.checked },
       afterId: lastId
     })
     lastId = block.id
+  }
+}
+
+/**
+ * Re-seed the welcome page's example blocks. The page itself is preserved
+ * (same id, title, icon); only its blocks are wiped and re-inserted.
+ * Throws if no page with the welcome title exists.
+ */
+export function resetWelcomePage(): PageMeta {
+  const row = db
+    .prepare('SELECT * FROM pages WHERE title = ? ORDER BY created_at ASC LIMIT 1')
+    .get(WELCOME_PAGE_TITLE) as PageRow | undefined
+  if (!row) {
+    throw new Error(`未找到标题为 "${WELCOME_PAGE_TITLE}" 的欢迎页面`)
+  }
+
+  const ts = now()
+  // Clear existing blocks for this page, then re-seed inside a single transaction.
+  db.exec('BEGIN')
+  try {
+    db.prepare('DELETE FROM blocks WHERE page_id = ?').run(row.id)
+
+    const ts2 = now()
+    let position = POSITION_STEP
+    const insert = db.prepare(
+      'INSERT INTO blocks (id, page_id, type, content, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    for (const seed of WELCOME_SEED_BLOCKS) {
+      const id = randomUUID()
+      const content = JSON.stringify({ text: seed.text, checked: seed.checked })
+      insert.run(id, row.id, seed.type, content, position, ts2, ts2)
+      position += POSITION_STEP
+    }
+    db.prepare('UPDATE pages SET updated_at = ? WHERE id = ?').run(ts2, row.id)
+    db.exec('COMMIT')
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
+
+  return {
+    id: row.id,
+    title: row.title,
+    icon: row.icon,
+    parentId: row.parent_id,
+    position: row.position,
+    createdAt: row.created_at,
+    updatedAt: ts
   }
 }

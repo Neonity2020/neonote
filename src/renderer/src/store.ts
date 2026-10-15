@@ -59,6 +59,8 @@ interface StoreState {
   renamePage: (id: string, title: string) => void
   setPageIcon: (id: string, icon: string | null) => void
   deletePage: (id: string) => Promise<void>
+  /** Reset the welcome page's example blocks in-place. Page id stays the same. */
+  resetWelcomePage: () => Promise<void>
 
   updateBlockLocal: (id: string, content: BlockContent) => void
   setBlockType: (id: string, type: BlockType) => void
@@ -133,6 +135,20 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ pages: remaining })
     if (currentPageId && removed.has(currentPageId)) {
       await get().selectPage(remaining[0]?.id ?? null)
+    }
+  },
+
+  resetWelcomePage: async () => {
+    flushSaves()
+    const { currentPageId } = get()
+    const page = await window.api.resetWelcomePage()
+    // Touch the page's updatedAt locally so the sidebar reflects the change
+    set((s) => ({
+      pages: s.pages.map((p) => (p.id === page.id ? { ...p, updatedAt: page.updatedAt } : p))
+    }))
+    // If we're currently viewing the welcome page, reload its blocks
+    if (currentPageId === page.id) {
+      await get().selectPage(page.id)
     }
   },
 

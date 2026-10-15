@@ -13,6 +13,7 @@ const api: NotionApi = {
   createPage: (input: CreatePageInput) => ipcRenderer.invoke('pages:create', input),
   updatePage: (input: UpdatePageInput) => ipcRenderer.invoke('pages:update', input),
   deletePage: (id: string) => ipcRenderer.invoke('pages:delete', id),
+  resetWelcomePage: () => ipcRenderer.invoke('pages:reset-welcome'),
 
   listBlocks: (pageId: string) => ipcRenderer.invoke('blocks:list', pageId),
   createBlock: (input: CreateBlockInput) => ipcRenderer.invoke('blocks:create', input),

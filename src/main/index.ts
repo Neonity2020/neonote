@@ -50,6 +50,7 @@ function registerIpc(): void {
   ipcMain.handle('pages:create', (_e, input: CreatePageInput) => db.createPage(input))
   ipcMain.handle('pages:update', (_e, input: UpdatePageInput) => db.updatePage(input))
   ipcMain.handle('pages:delete', (_e, id: string) => db.deletePage(id))
+  ipcMain.handle('pages:reset-welcome', () => db.resetWelcomePage())
 
   ipcMain.handle('blocks:list', (_e, pageId: string) => db.listBlocks(pageId))
   ipcMain.handle('blocks:create', (_e, input: CreateBlockInput) => db.createBlock(input))

@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Sun,
   Trash2
@@ -20,9 +21,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from './ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
+import { WELCOME_PAGE_TITLE } from '../../../shared/types'
 import type { PageMeta, SearchResult } from '../../../shared/types'
 
 interface SidebarProps {
@@ -199,6 +202,7 @@ function PageTreeItem({ node, depth }: { node: TreeNode; depth: number }): JSX.E
   const createPage = useStore((s) => s.createPage)
   const renamePage = useStore((s) => s.renamePage)
   const deletePage = useStore((s) => s.deletePage)
+  const resetWelcomePage = useStore((s) => s.resetWelcomePage)
 
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -299,6 +303,25 @@ function PageTreeItem({ node, depth }: { node: TreeNode; depth: number }): JSX.E
               <DropdownMenuItem onClick={() => void createPage(page.id)}>
                 <Plus /> 新建子页面
               </DropdownMenuItem>
+              {page.title === WELCOME_PAGE_TITLE && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `确定要恢复「${WELCOME_PAGE_TITLE}」的示例内容吗?这会清除当前该页面的所有块。`
+                        )
+                      ) {
+                        void resetWelcomePage()
+                      }
+                    }}
+                  >
+                    <RotateCcw /> 恢复示例内容
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => void deletePage(page.id)}

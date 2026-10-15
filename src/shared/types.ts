@@ -11,6 +11,9 @@ export type BlockType =
   | 'divider'
   | 'image'
 
+/** Title of the auto-seeded welcome page. Used to identify it for "reset examples". */
+export const WELCOME_PAGE_TITLE = '欢迎使用 Notion Clone'
+
 export interface BlockContent {
   text?: string
   checked?: boolean
@@ -86,6 +89,11 @@ export interface NotionApi {
   createPage(input: CreatePageInput): Promise<PageMeta>
   updatePage(input: UpdatePageInput): Promise<void>
   deletePage(id: string): Promise<void>
+  /**
+   * Re-seed the welcome page's example blocks. Returns the page meta.
+   * Throws if no page with the welcome title exists.
+   */
+  resetWelcomePage(): Promise<PageMeta>
   listBlocks(pageId: string): Promise<Block[]>
   createBlock(input: CreateBlockInput): Promise<Block>
   updateBlock(input: UpdateBlockInput): Promise<void>
