@@ -282,7 +282,7 @@ export function BlockItem({
       e.preventDefault()
       if (slashOpen) onSlashChange(block.id, null)
       const file = imageItem.getAsFile()
-      if (file) void pasteImageFile(file, e.currentTarget)
+      if (file) void pasteImageFile(file, e.currentTarget as HTMLElement)
       return
     }
     e.preventDefault()
@@ -318,21 +318,21 @@ export function BlockItem({
       case 'quote':
         return (
           <div className="border-l-[3px] border-foreground/60 pl-3.5">
-            <div {...editableProps} className="block-editable text-[15px] leading-7" />
+            <div {...editableProps} className="block-editable block-body" />
           </div>
         )
       case 'bulletedList':
         return (
           <div className="flex items-start gap-2">
-            <span className="select-none pt-px text-[15px] leading-7">•</span>
-            <div {...editableProps} className="block-editable min-w-0 flex-1 text-[15px] leading-7" />
+            <span className="select-none pt-px block-body">•</span>
+            <div {...editableProps} className="block-editable min-w-0 flex-1 block-body" />
           </div>
         )
       case 'numberedList':
         return (
           <div className="flex items-start gap-2">
-            <span className="select-none pt-px text-[15px] leading-7">{number ?? 1}.</span>
-            <div {...editableProps} className="block-editable min-w-0 flex-1 text-[15px] leading-7" />
+            <span className="select-none pt-px block-body">{number ?? 1}.</span>
+            <div {...editableProps} className="block-editable min-w-0 flex-1 block-body" />
           </div>
         )
       case 'todo':
@@ -347,7 +347,7 @@ export function BlockItem({
             <div
               {...editableProps}
               className={cn(
-                'block-editable min-w-0 flex-1 text-[15px] leading-7',
+                'block-editable min-w-0 flex-1 block-body',
                 block.content.checked && 'text-muted-foreground line-through'
               )}
             />
@@ -441,7 +441,7 @@ export function BlockItem({
           </div>
         )
       default:
-        return <div {...editableProps} className="block-editable text-[15px] leading-7" />
+        return <div {...editableProps} className="block-editable block-body" />
     }
   }
 

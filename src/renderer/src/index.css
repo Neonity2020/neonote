@@ -76,6 +76,12 @@
 
 /* ---------- Editor ---------- */
 
+/* 正文字号由「设置 → 外观」通过根节点 CSS 变量下发 */
+.block-body {
+  font-size: var(--editor-font-size, 15px);
+  line-height: 1.8;
+}
+
 .block-editable {
   outline: none;
   user-select: text;

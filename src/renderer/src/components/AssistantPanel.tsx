@@ -1,0 +1,351 @@
+import { useEffect, useRef, useState } from 'react'
+import { Check, FileText, Loader2, Send, Sparkles, Square, Wrench, X, XCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useStore } from '@/store'
+import { useSettings } from '@/settingsStore'
+import { Button } from './ui/button'
+import type { AiEvent, AiPageContext, AiStatus } from '../../../shared/types'
+
+interface ToolCallItem {
+  id: string
+  label: string
+  done: boolean
+  isError?: boolean
+}
+
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant' | 'notice'
+  text: string
+  thinking: string
+  tools: ToolCallItem[]
+  error?: string
+}
+
+let msgSeq = 0
+function nextId(): string {
+  return `m${++msgSeq}`
+}
+
+interface AssistantPanelProps {
+  onClose: () => void
+}
+
+export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [streaming, setStreaming] = useState(false)
+  const [status, setStatus] = useState<AiStatus>({ ready: false })
+  const [retrying, setRetrying] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // 当前页面上下文:发送时自动带过去,省得模型每轮都要自己读一遍
+  const pages = useStore((s) => s.pages)
+  const currentPageId = useStore((s) => s.currentPageId)
+  const blocks = useStore((s) => s.blocks)
+  const currentPage = pages.find((p) => p.id === currentPageId) ?? null
+  const autoContext = useSettings((s) => s.settings.ai.autoContext)
+  const modelSetting = useSettings((s) => s.settings.ai.model)
+
+  useEffect(() => {
+    let cancelled = false
+    void window.ai.getStatus().then((s) => {
+      if (!cancelled) setStatus(s)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [modelSetting])
+
+  /** 初始化失败后手动重试:先丢弃旧会话(可能是在坏环境下建的),再重新取状态 */
+  async function retry(): Promise<void> {
+    setRetrying(true)
+    try {
+      await window.ai.reset()
+      setStatus(await window.ai.getStatus())
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  useEffect(() => {
+    const off = window.ai.onEvent((event: AiEvent) => {
+      handleEvent(event)
+    })
+    return off
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages, streaming])
+
+  function updateLastAssistant(fn: (m: ChatMessage) => ChatMessage): void {
+    setMessages((prev) => {
+      const idx = prev.length - 1
+      if (idx < 0 || prev[idx].role !== 'assistant') {
+        const fresh: ChatMessage = { id: nextId(), role: 'assistant', text: '', thinking: '', tools: [] }
+        return [...prev, fn(fresh)]
+      }
+      const next = [...prev]
+      next[idx] = fn(next[idx])
+      return next
+    })
+  }
+
+  function handleEvent(event: AiEvent): void {
+    switch (event.type) {
+      case 'run_start':
+        setStreaming(true)
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId(), role: 'assistant', text: '', thinking: '', tools: [] }
+        ])
+        break
+      case 'text_delta':
+        updateLastAssistant((m) => ({ ...m, text: m.text + event.delta }))
+        break
+      case 'thinking_delta':
+        updateLastAssistant((m) => ({ ...m, thinking: m.thinking + event.delta }))
+        break
+      case 'tool_start':
+        updateLastAssistant((m) => ({
+          ...m,
+          tools: [...m.tools, { id: event.id, label: event.label, done: false }]
+        }))
+        break
+      case 'tool_end':
+        updateLastAssistant((m) => ({
+          ...m,
+          tools: m.tools.map((t) =>
+            t.id === event.id ? { ...t, done: true, isError: event.isError } : t
+          )
+        }))
+        break
+      case 'notice':
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId(), role: 'notice', text: event.text, thinking: '', tools: [] }
+        ])
+        break
+      case 'run_end':
+        setStreaming(false)
+        if (event.error) {
+          updateLastAssistant((m) => ({ ...m, error: event.error }))
+        }
+        break
+    }
+  }
+
+  function buildContext(): AiPageContext | null {
+    if (!autoContext || !currentPage) return null
+    return {
+      pageId: currentPage.id,
+      title: currentPage.title,
+      icon: currentPage.icon,
+      blocks: blocks.map((b) => ({
+        id: b.id,
+        type: b.type,
+        text: b.content.text ?? '',
+        ...(b.type === 'todo' ? { checked: !!b.content.checked } : {})
+      }))
+    }
+  }
+
+  async function send(): Promise<void> {
+    const text = input.trim()
+    if (!text || streaming) return
+    setInput('')
+    setMessages((prev) => [
+      ...prev,
+      { id: nextId(), role: 'user', text, thinking: '', tools: [] }
+    ])
+    setStreaming(true)
+    const res = await window.ai.send(text, buildContext())
+    if (!res.ok) {
+      setStreaming(false)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId(),
+          role: 'notice',
+          text: `发送失败:${res.error ?? '未知错误'}`,
+          thinking: '',
+          tools: []
+        }
+      ])
+    }
+  }
+
+  return (
+    <aside className="flex h-full w-80 shrink-0 flex-col border-l bg-muted/20">
+      {/* 头部 */}
+      <div className="flex items-center justify-between border-b px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold">AI 助手</span>
+          {status.ready && status.model && (
+            <span className="max-w-32 truncate text-[10px] text-muted-foreground" title={status.model}>
+              {status.model}
+            </span>
+          )}
+        </div>
+        <Button variant="ghost" size="icon-sm" onClick={onClose} title="关闭">
+          <X />
+        </Button>
+      </div>
+
+      {/* 初始化错误 */}
+      {!status.ready && status.error && (
+        <div className="flex items-start gap-2 border-b bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <span className="min-w-0 flex-1">AI 初始化失败:{status.error}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2 text-[11px]"
+            onClick={() => void retry()}
+            disabled={retrying}
+          >
+            {retrying ? '重试中…' : '重试'}
+          </Button>
+        </div>
+      )}
+
+      {/* 当前页面上下文提示 */}
+      <div className="flex items-center gap-1.5 border-b px-3 py-1.5 text-[11px] text-muted-foreground">
+        <FileText className="h-3 w-3 shrink-0" />
+        上下文:
+        {!autoContext ? (
+          <span>已关闭(可在设置中开启)</span>
+        ) : currentPage ? (
+          <span className="truncate">
+            {currentPage.icon ? currentPage.icon + ' ' : ''}
+            {currentPage.title || '无标题'} · {blocks.length} 个块
+          </span>
+        ) : (
+          <span>无打开的页面</span>
+        )}
+      </div>
+
+      {/* 消息列表 */}
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+        {messages.length === 0 && (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+            <Sparkles className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-xs text-muted-foreground">
+              试试:「帮我在当前页面写一份周计划」
+              <br />
+              「搜一下我记过的所有密码相关内容」
+            </p>
+          </div>
+        )}
+        {messages.map((m) => (
+          <MessageBubble key={m.id} message={m} />
+        ))}
+        {streaming && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" /> 思考中…
+          </div>
+        )}
+      </div>
+
+      {/* 输入区 */}
+      <div className="border-t p-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                void send()
+              }
+            }}
+            placeholder="让 AI 帮你整理笔记…"
+            rows={2}
+            className="min-h-9 flex-1 resize-none rounded-md border border-input bg-background px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          {streaming ? (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void window.ai.abort()}
+              title="停止"
+            >
+              <Square />
+            </Button>
+          ) : (
+            <Button size="icon" onClick={() => void send()} disabled={!input.trim()} title="发送">
+              <Send />
+            </Button>
+          )}
+        </div>
+        <p className="mt-1.5 text-[10px] text-muted-foreground">Enter 发送,Shift+Enter 换行</p>
+      </div>
+    </aside>
+  )
+}
+
+function MessageBubble({ message }: { message: ChatMessage }): JSX.Element {
+  if (message.role === 'notice') {
+    return <p className="text-center text-[11px] text-muted-foreground">{message.text}</p>
+  }
+
+  if (message.role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground">
+          {message.text}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {message.thinking && (
+        <details className="rounded-md border border-dashed px-2.5 py-1.5 text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none">思考过程</summary>
+          <p className="mt-1 whitespace-pre-wrap">{message.thinking}</p>
+        </details>
+      )}
+      {message.tools.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {message.tools.map((t) => (
+            <span
+              key={t.id}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
+                t.isError
+                  ? 'border-destructive/40 text-destructive'
+                  : 'text-muted-foreground'
+              )}
+            >
+              <Wrench className="h-3 w-3" />
+              {t.label}
+              {t.done ? (
+                t.isError ? (
+                  <XCircle className="h-3 w-3" />
+                ) : (
+                  <Check className="h-3 w-3 text-green-600" />
+                )
+              ) : (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {message.text && (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
+      )}
+      {message.error && (
+        <p className="rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
+          {message.error}
+        </p>
+      )}
+    </div>
+  )
+}

@@ -1,8 +1,10 @@
-import { app, BrowserWindow, ipcMain, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'node:url'
 import { basename, extname } from 'node:path'
 import * as db from './db'
+import { registerAi } from './ai'
+import { registerSettings, getSettings } from './settings'
 import { ASSET_SCHEME, MIME_BY_EXT, gcAssets, getAssetsDir, pickImage, saveImage } from './assets'
 import type {
   CreateBlockInput,
@@ -12,6 +14,13 @@ import type {
   UpdatePageInput
 } from '../shared/types'
 
+/** 窗口底色跟随主题设置,避免深色下启动闪白 */
+function resolvedTheme(): 'light' | 'dark' {
+  const theme = getSettings().theme
+  if (theme === 'system') return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+  return theme
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -19,7 +28,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    backgroundColor: '#ffffff',
+    backgroundColor: resolvedTheme() === 'dark' ? '#0a0a0b' : '#ffffff',
     title: 'Notion Clone',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -96,7 +105,10 @@ app.whenReady().then(() => {
   gcAssets(db.listImageAssetIds())
   registerAssetProtocol()
   registerIpc()
+  registerSettings()
   createWindow()
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) registerAi(win)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

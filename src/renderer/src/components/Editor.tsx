@@ -144,7 +144,10 @@ export function Editor(): JSX.Element {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-20 pb-[30vh] pt-14">
+    <div
+      className="mx-auto w-full px-20 pb-[30vh] pt-14"
+      style={{ maxWidth: 'var(--editor-max-width, 768px)' }}
+    >
       <div className="relative">
         <button
           className="mb-1 flex h-12 w-12 items-center justify-center rounded-md text-4xl transition-colors hover:bg-accent"

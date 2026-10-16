@@ -72,6 +72,8 @@ interface StoreState {
   ) => Promise<Block | null>
   removeBlock: (id: string) => Promise<void>
   setBlocksOrder: (orderedIds: string[]) => void
+  /** AI 助手改动笔记后,从数据库重新加载页面与块 */
+  refreshFromAi: () => Promise<void>
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -215,6 +217,20 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ blocks: reordered })
     if (currentPageId) {
       void window.api.reorderBlocks(currentPageId, orderedIds)
+    }
+  },
+
+  refreshFromAi: async () => {
+    // 先把本地未落库的编辑写回去,再整体重读,避免 AI 的改动被旧快照覆盖
+    flushSaves()
+    const pages = await window.api.listPages()
+    const { currentPageId } = get()
+    if (currentPageId && pages.some((p) => p.id === currentPageId)) {
+      const blocks = await window.api.listBlocks(currentPageId)
+      set({ pages, blocks })
+    } else {
+      set({ pages })
+      await get().selectPage(pages[0]?.id ?? null)
     }
   }
 }))

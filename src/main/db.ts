@@ -52,6 +52,12 @@ export function initDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_blocks_page ON blocks(page_id, position);
     CREATE INDEX IF NOT EXISTS idx_pages_parent ON pages(parent_id, position);
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `)
   seedIfEmpty()
 }
@@ -211,6 +217,11 @@ export function createBlock(input: CreateBlockInput): Block {
   return insertBlock(input)
 }
 
+export function getBlock(id: string): Block | undefined {
+  const row = db.prepare('SELECT * FROM blocks WHERE id = ?').get(id) as BlockRow | undefined
+  return row ? blockFromRow(row) : undefined
+}
+
 export function updateBlock(input: UpdateBlockInput): void {
   const ts = now()
   const row = db.prepare('SELECT page_id FROM blocks WHERE id = ?').get(input.id) as
@@ -270,6 +281,43 @@ export function listImageAssetIds(): Set<string> {
     }
   }
   return ids
+}
+
+// ---------- Settings (raw key/value) ----------
+
+/** 读取全部设置分区,值是反序列化后的对象;解析失败的条目会被忽略 */
+export function loadSettingsRaw(): Record<string, unknown> {
+  const rows = db.prepare('SELECT key, value FROM settings').all() as unknown as Array<{
+    key: string
+    value: string
+  }>
+  const out: Record<string, unknown> = {}
+  for (const row of rows) {
+    try {
+      out[row.key] = JSON.parse(row.value)
+    } catch {
+      // 忽略损坏的条目,回落到默认值
+    }
+  }
+  return out
+}
+
+export function saveSettingsSection(key: string, value: unknown): void {
+  db.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).run(key, JSON.stringify(value), now())
+}
+
+export function clearSettings(): void {
+  db.prepare('DELETE FROM settings').run()
+}
+
+/** 页面 / 块数量统计(设置面板用) */
+export function countRows(): { pages: number; blocks: number } {
+  const pages = (db.prepare('SELECT COUNT(*) AS c FROM pages').get() as { c: number }).c
+  const blocks = (db.prepare('SELECT COUNT(*) AS c FROM blocks').get() as { c: number }).c
+  return { pages, blocks }
 }
 
 // ---------- Search ----------

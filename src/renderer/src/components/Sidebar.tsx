@@ -9,6 +9,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Settings,
   Sun,
   Trash2
 } from 'lucide-react'
@@ -31,9 +32,10 @@ import type { PageMeta, SearchResult } from '../../../shared/types'
 interface SidebarProps {
   dark: boolean
   onToggleTheme: () => void
+  onOpenSettings: () => void
 }
 
-export function Sidebar({ dark, onToggleTheme }: SidebarProps): JSX.Element {
+export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): JSX.Element {
   const pages = useStore((s) => s.pages)
   const currentPageId = useStore((s) => s.currentPageId)
   const selectPage = useStore((s) => s.selectPage)
@@ -159,8 +161,23 @@ export function Sidebar({ dark, onToggleTheme }: SidebarProps): JSX.Element {
       </div>
 
       <Separator />
-      <div className="px-4 py-2 text-[11px] text-muted-foreground">
-        共 {pages.length} 个页面 · 数据保存在本地
+      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+        <span className="min-w-0 truncate px-2 text-[11px] text-muted-foreground">
+          共 {pages.length} 个页面 · 本地保存
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onOpenSettings}
+              className="shrink-0"
+            >
+              <Settings />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>设置</TooltipContent>
+        </Tooltip>
       </div>
     </aside>
   )
