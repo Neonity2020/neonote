@@ -9,6 +9,7 @@ import {
   ListOrdered,
   Minus,
   Quote,
+  Table2,
   Type,
   type LucideIcon
 } from 'lucide-react'
@@ -33,6 +34,7 @@ export const BLOCK_TYPE_ITEMS: BlockTypeMeta[] = [
   { type: 'quote', label: '引用', description: '引用或强调文字', keywords: 'quote blockquote yy yin', icon: Quote },
   { type: 'code', label: '代码块', description: '等宽字体代码片段', keywords: 'code pre dm daima', icon: Code },
   { type: 'image', label: '图片', description: '插入本地图片或直接粘贴', keywords: 'image picture img photo tp tupian', icon: Image },
+  { type: 'table', label: '表格', description: '简单的行列数据表', keywords: 'table grid biaoge bg bg2 liebiao', icon: Table2 },
   { type: 'divider', label: '分割线', description: '水平分隔线', keywords: 'divider hr fgx line', icon: Minus }
 ]
 

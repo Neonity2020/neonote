@@ -113,3 +113,23 @@ export function consumePendingFocus(id: string): number | null | undefined {
   }
   return undefined
 }
+
+/* ---------- Pending table cell focus ---------- */
+
+/**
+ * 表格块没有"一个"可编辑元素,聚焦主体时应该落到第一个单元格。
+ * 斜杠菜单刚把块转成表格时组件还没挂载,这里先登记,等表格挂载后自行消费。
+ */
+let pendingCellFocus: string | null = null
+
+export function requestCellFocus(id: string): void {
+  pendingCellFocus = id
+}
+
+export function consumeCellFocus(id: string): boolean {
+  if (pendingCellFocus === id) {
+    pendingCellFocus = null
+    return true
+  }
+  return false
+}

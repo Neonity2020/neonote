@@ -11,7 +11,8 @@ import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-ki
 import { FileText } from 'lucide-react'
 import { useStore } from '@/store'
 import { filterBlockTypes, type BlockTypeMeta } from '@/lib/blockTypes'
-import { focusBlock, requestFocus, setBlockElementText } from '@/lib/caret'
+import { focusBlock, requestCellFocus, requestFocus, setBlockElementText } from '@/lib/caret'
+import { createTableData, tableToText } from '../../../shared/types'
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
 
@@ -92,6 +93,17 @@ export function Editor(): JSX.Element {
     if (!slash) return
     const blockId = slash.blockId
     setSlash(null)
+
+    if (item.type === 'table') {
+      // 表格没有单一可编辑元素,初始化数据后把光标交给第一个单元格
+      const table = createTableData()
+      setBlockElementText(blockId, '')
+      setBlockType(blockId, 'table')
+      updateBlockLocal(blockId, { table, text: tableToText(table) })
+      requestCellFocus(blockId)
+      return
+    }
+
     setBlockElementText(blockId, '')
     setBlockType(blockId, item.type)
     updateBlockLocal(blockId, item.type === 'todo' ? { text: '', checked: false } : { text: '' })

@@ -16,8 +16,10 @@ import type {
   AiSendResult,
   AiStatus,
   AppSettings,
+  BlockContent,
   BlockType
 } from '../shared/types'
+import { tableToText } from '../shared/types'
 
 /**
  * AI 助手服务:在主进程内运行一个 Pi agent 会话。
@@ -33,7 +35,7 @@ const SYSTEM_PROMPT_BASE = `你是 Notion Clone 笔记应用内置的 AI 助手,
 - notes_read_page:读取一个页面的全部块内容
 - notes_search:全文搜索标题与块内容
 - notes_create_page:新建页面
-- notes_append_blocks:向页面末尾追加块(段落、标题、列表、待办、引用、代码、分割线)
+- notes_append_blocks:向页面末尾追加块(段落、标题、列表、待办、引用、代码、分割线、表格)
 - notes_update_block:修改块的内容、类型或待办勾选状态
 - notes_delete_block:删除块
 
@@ -230,6 +232,17 @@ function handleEvent(event: AgentSessionEvent): void {
 
 type TypeBox = typeof import('@earendil-works/pi-ai').Type
 
+/** 把模型传来的二维数组规范化成矩形表格(第一行作表头),同时写入纯文本摘要 */
+function tableContent(raw: unknown): BlockContent {
+  const list = Array.isArray(raw) ? raw.filter((r): r is unknown[] => Array.isArray(r)) : []
+  const rows = list.map((r) => r.map((v) => (v == null ? '' : String(v))))
+  if (rows.length === 0) rows.push([''])
+  const width = Math.max(1, ...rows.map((r) => r.length))
+  const padded = rows.map((r) => [...r, ...Array.from({ length: width - r.length }, () => '')])
+  const table = { header: true, rows: padded }
+  return { table, text: tableToText(table) }
+}
+
 // 用 any 泛型让各工具 execute 的 params 保持 any,避免逐个手写 Static<T> 类型
 function buildNotesTools(Type: TypeBox): Array<ToolDefinition<any, any>> {
   const blockTypeSchema = Type.Union([
@@ -242,7 +255,8 @@ function buildNotesTools(Type: TypeBox): Array<ToolDefinition<any, any>> {
     Type.Literal('todo'),
     Type.Literal('quote'),
     Type.Literal('code'),
-    Type.Literal('divider')
+    Type.Literal('divider'),
+    Type.Literal('table')
   ])
 
   const ok = (data: unknown): { content: Array<{ type: 'text'; text: string }>; details: Record<string, never> } => ({
@@ -328,7 +342,12 @@ function buildNotesTools(Type: TypeBox): Array<ToolDefinition<any, any>> {
           Type.Object({
             type: blockTypeSchema,
             text: Type.Optional(Type.String({ description: '块文本内容,divider 可省略' })),
-            checked: Type.Optional(Type.Boolean({ description: '仅 todo 块:是否勾选' }))
+            checked: Type.Optional(Type.Boolean({ description: '仅 todo 块:是否勾选' })),
+            table: Type.Optional(
+              Type.Array(Type.Array(Type.String()), {
+                description: '仅 table 块:二维字符串数组,第一行作为表头(如 [["名称","数量"],["苹果","3"]])'
+              })
+            )
           }),
           { minItems: 1 }
         )
@@ -344,7 +363,10 @@ function buildNotesTools(Type: TypeBox): Array<ToolDefinition<any, any>> {
           const block = db.createBlock({
             pageId: params.pageId,
             type: b.type as BlockType,
-            content: { text: b.text ?? '', ...(b.type === 'todo' ? { checked: !!b.checked } : {}) },
+            content: b.type === 'table' ? tableContent(b.table) : {
+              text: b.text ?? '',
+              ...(b.type === 'todo' ? { checked: !!b.checked } : {})
+            },
             afterId: lastId
           })
           created.push(block.id)
@@ -356,17 +378,25 @@ function buildNotesTools(Type: TypeBox): Array<ToolDefinition<any, any>> {
     {
       name: 'notes_update_block',
       label: TOOL_LABELS.notes_update_block,
-      description: '修改一个块:文本内容、块类型、待办勾选状态,至少提供一项',
+      description: '修改一个块:文本内容、块类型、待办勾选状态、表格数据,至少提供一项',
       parameters: Type.Object({
         blockId: Type.String({ description: '块 id' }),
         text: Type.Optional(Type.String({ description: '新的文本内容' })),
         type: Type.Optional(blockTypeSchema),
-        checked: Type.Optional(Type.Boolean({ description: '仅 todo 块:是否勾选' }))
+        checked: Type.Optional(Type.Boolean({ description: '仅 todo 块:是否勾选' })),
+        table: Type.Optional(
+          Type.Array(Type.Array(Type.String()), {
+            description: '仅 table 块:新的二维字符串数组(整表替换,第一行为表头)'
+          })
+        )
       }),
       execute: async (_id, params: any) => {
         const block = db.getBlock(params.blockId)
         if (!block) return fail(`块不存在: ${params.blockId}`)
-        const content = { ...block.content }
+        let content = { ...block.content }
+        if (params.table !== undefined) {
+          content = tableContent(params.table)
+        }
         if (params.text !== undefined) content.text = params.text
         if (params.checked !== undefined) content.checked = params.checked
         if (params.type !== undefined && params.type === 'divider') content.text = ''

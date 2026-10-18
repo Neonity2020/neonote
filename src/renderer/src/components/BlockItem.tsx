@@ -16,6 +16,7 @@ import {
 } from '@/lib/caret'
 import { SlashMenu } from './SlashMenu'
 import { ImageBlock } from './ImageBlock'
+import { TableBlock } from './TableBlock'
 
 function matchMarkdown(text: string): BlockType | null {
   switch (text) {
@@ -172,8 +173,8 @@ export function BlockItem({
       return
     }
 
-    if (prev.type === 'image') {
-      // Do not merge text into an image block; just move focus onto it
+    if (prev.type === 'image' || prev.type === 'table') {
+      // 不能把文本并进图片/表格块,只把焦点移过去
       focusBlock(prev.id)
       return
     }
@@ -412,6 +413,8 @@ export function BlockItem({
         )
       case 'image':
         return <ImageBlock block={block} registerRef={registerRef} getNeighbors={getNeighbors} />
+      case 'table':
+        return <TableBlock block={block} registerRef={registerRef} getNeighbors={getNeighbors} />
       case 'divider':
         return (
           <div

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Block, BlockContent, BlockType, PageMeta } from '../../shared/types'
+import { createTableData, tableToText } from '../../shared/types'
 
 const SAVE_DEBOUNCE = 400
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -176,6 +177,11 @@ export const useStore = create<StoreState>((set, get) => ({
         const content: BlockContent = { ...b.content }
         if (type === 'divider') content.text = ''
         if (type !== 'todo') delete content.checked
+        // 转成表格时补一份默认数据;转走时保留数据,方便再转回来
+        if (type === 'table' && !content.table) {
+          content.table = createTableData()
+          content.text = tableToText(content.table)
+        }
         return { ...b, type, content }
       })
     }))

@@ -10,15 +10,48 @@ export type BlockType =
   | 'code'
   | 'divider'
   | 'image'
+  | 'table'
 
 /** Title of the auto-seeded welcome page. Used to identify it for "reset examples". */
 export const WELCOME_PAGE_TITLE = '欢迎使用 Notion Clone'
+
+/** 简单表格:纯文本单元格,不做合并/样式,第一行可选作为表头 */
+export interface TableData {
+  rows: string[][]
+  /** 是否把第一行渲染为表头 */
+  header: boolean
+}
 
 export interface BlockContent {
   text?: string
   checked?: boolean
   /** Image block: asset URL (nc-asset://asset/<id>) */
   src?: string
+  /** Table block: 行列数据 */
+  table?: TableData
+}
+
+/** 新建表格的默认尺寸 */
+export const TABLE_DEFAULT_ROWS = 3
+export const TABLE_DEFAULT_COLS = 3
+
+export function createTableData(
+  rowCount = TABLE_DEFAULT_ROWS,
+  colCount = TABLE_DEFAULT_COLS,
+  header = true
+): TableData {
+  return {
+    header,
+    rows: Array.from({ length: Math.max(1, rowCount) }, () => Array.from({ length: Math.max(1, colCount) }, () => ''))
+  }
+}
+
+/**
+ * 把表格拍平成纯文本,写进 content.text。
+ * 这样搜索、AI 上下文、复制粘贴都能直接复用既有的纯文本通道。
+ */
+export function tableToText(table: TableData): string {
+  return table.rows.map((row) => row.join(' | ')).join('\n')
 }
 
 export interface SaveImageInput {
