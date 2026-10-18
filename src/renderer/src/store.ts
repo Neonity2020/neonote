@@ -59,6 +59,8 @@ interface StoreState {
   renamePage: (id: string, title: string) => void
   setPageIcon: (id: string, icon: string | null) => void
   deletePage: (id: string) => Promise<void>
+  /** 移动页面(改父级 / 同级重排) */
+  movePage: (id: string, parentId: string | null, index: number) => Promise<void>
   /** Reset the welcome page's example blocks in-place. Page id stays the same. */
   resetWelcomePage: () => Promise<void>
 
@@ -138,6 +140,12 @@ export const useStore = create<StoreState>((set, get) => ({
     if (currentPageId && removed.has(currentPageId)) {
       await get().selectPage(remaining[0]?.id ?? null)
     }
+  },
+
+  movePage: async (id, parentId, index) => {
+    // 先落库再整体替换,避免前端拼树时出现和数据库不一致的中间态
+    const pages = await window.api.movePage({ id, parentId, index })
+    set({ pages })
   },
 
   resetWelcomePage: async () => {

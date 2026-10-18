@@ -9,6 +9,7 @@ import { ASSET_SCHEME, MIME_BY_EXT, gcAssets, getAssetsDir, pickImage, saveImage
 import type {
   CreateBlockInput,
   CreatePageInput,
+  MovePageInput,
   SaveImageInput,
   UpdateBlockInput,
   UpdatePageInput
@@ -59,6 +60,7 @@ function registerIpc(): void {
   ipcMain.handle('pages:create', (_e, input: CreatePageInput) => db.createPage(input))
   ipcMain.handle('pages:update', (_e, input: UpdatePageInput) => db.updatePage(input))
   ipcMain.handle('pages:delete', (_e, id: string) => db.deletePage(id))
+  ipcMain.handle('pages:move', (_e, input: MovePageInput) => db.movePage(input))
   ipcMain.handle('pages:reset-welcome', () => db.resetWelcomePage())
 
   ipcMain.handle('blocks:list', (_e, pageId: string) => db.listBlocks(pageId))

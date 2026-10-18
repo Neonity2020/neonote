@@ -71,6 +71,15 @@ export interface UpdatePageInput {
   icon?: string | null
 }
 
+/** 把页面移动到新的父级下的指定位置(同时覆盖"同级排序"和"改变层级"两种操作) */
+export interface MovePageInput {
+  id: string
+  /** 新父级;null 表示移到顶层 */
+  parentId: string | null
+  /** 在目标父级的子节点中的插入位置(0 基;计算时不含被移动页面自身) */
+  index: number
+}
+
 export interface CreateBlockInput {
   pageId: string
   type?: BlockType
@@ -210,6 +219,8 @@ export interface NotionApi {
   createPage(input: CreatePageInput): Promise<PageMeta>
   updatePage(input: UpdatePageInput): Promise<void>
   deletePage(id: string): Promise<void>
+  /** 移动页面(改父级 / 同级重排),返回刷新后的完整页面列表 */
+  movePage(input: MovePageInput): Promise<PageMeta[]>
   /**
    * Re-seed the welcome page's example blocks. Returns the page meta.
    * Throws if no page with the welcome title exists.

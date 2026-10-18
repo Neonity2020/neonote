@@ -8,6 +8,7 @@ import type {
   BlockType,
   CreateBlockInput,
   CreatePageInput,
+  MovePageInput,
   PageMeta,
   SearchResult,
   UpdateBlockInput,
@@ -162,6 +163,63 @@ export function updatePage(input: UpdatePageInput): void {
 export function deletePage(id: string): void {
   // FK cascade removes child pages and their blocks
   db.prepare('DELETE FROM pages WHERE id = ?').run(id)
+}
+
+/** candidate 是否等于 target 或位于 target 的子树中(用于阻止把页面拖进自己的后代) */
+function isSelfOrDescendant(candidateId: string, targetId: string): boolean {
+  let cur: string | null = candidateId
+  const seen = new Set<string>()
+  while (cur) {
+    if (cur === targetId) return true
+    if (seen.has(cur)) return false
+    seen.add(cur)
+    const row = db.prepare('SELECT parent_id AS pid FROM pages WHERE id = ?').get(cur) as
+      | { pid: string | null }
+      | undefined
+    cur = row?.pid ?? null
+  }
+  return false
+}
+
+/**
+ * 移动页面:改父级 + 在目标父级的兄弟序列里插入到 index 位置。
+ * position 用前后邻居的中点,避免为了插入一个节点重写整层。
+ */
+export function movePage(input: MovePageInput): PageMeta[] {
+  const { id, parentId } = input
+  if (!db.prepare('SELECT 1 FROM pages WHERE id = ?').get(id)) {
+    throw new Error('页面不存在')
+  }
+  if (parentId === id) throw new Error('不能把页面移动到它自己下面')
+  if (parentId && isSelfOrDescendant(parentId, id)) {
+    throw new Error('不能把页面移动到它自己的子页面下面')
+  }
+
+  const siblings = db
+    .prepare('SELECT id, position FROM pages WHERE parent_id IS ? AND id != ? ORDER BY position')
+    .all(parentId, id) as unknown as Array<{ id: string; position: number }>
+
+  const index = Math.max(0, Math.min(input.index, siblings.length))
+  const prev = siblings[index - 1]
+  const next = siblings[index]
+  let position: number
+  if (prev && next) {
+    position = (prev.position + next.position) / 2
+  } else if (prev) {
+    position = prev.position + POSITION_STEP
+  } else if (next) {
+    position = next.position - POSITION_STEP
+  } else {
+    position = POSITION_STEP
+  }
+
+  db.prepare('UPDATE pages SET parent_id = ?, position = ?, updated_at = ? WHERE id = ?').run(
+    parentId,
+    position,
+    now(),
+    id
+  )
+  return listPages()
 }
 
 // ---------- Blocks ----------

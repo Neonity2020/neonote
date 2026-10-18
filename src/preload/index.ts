@@ -9,6 +9,7 @@ import type {
   CreateBlockInput,
   CreatePageInput,
   DeepPartial,
+  MovePageInput,
   NotionApi,
   SaveImageInput,
   SettingsApi,
@@ -21,6 +22,7 @@ const api: NotionApi = {
   createPage: (input: CreatePageInput) => ipcRenderer.invoke('pages:create', input),
   updatePage: (input: UpdatePageInput) => ipcRenderer.invoke('pages:update', input),
   deletePage: (id: string) => ipcRenderer.invoke('pages:delete', id),
+  movePage: (input: MovePageInput) => ipcRenderer.invoke('pages:move', input),
   resetWelcomePage: () => ipcRenderer.invoke('pages:reset-welcome'),
 
   listBlocks: (pageId: string) => ipcRenderer.invoke('blocks:list', pageId),
