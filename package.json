@@ -11,7 +11,8 @@
     "dist": "electron-builder --win",
     "dist:dir": "electron-builder --win --dir",
     "dist:mac": "electron-builder --mac",
-    "dist:mac:dir": "electron-builder --mac --dir"
+    "dist:mac:dir": "electron-builder --mac --dir",
+    "docs:check": "node scripts/check-docs.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
