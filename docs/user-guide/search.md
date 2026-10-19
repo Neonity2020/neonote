@@ -6,7 +6,7 @@
 
 ## 基本行为
 
-- 输入内容后 **250ms 防抖**才发起查询（`src/renderer/src/components/Sidebar.tsx:82`）。
+- 输入内容后 **250ms 防抖**才发起查询（`packages/renderer/src/components/Sidebar.tsx:82`）。
 - 查询走 IPC 到主进程，直接对 SQLite 执行 `LIKE` 匹配。
 - 结果按**最近更新**排序。
 - 点任意结果跳到对应页面，并清空搜索框、收起结果面板。

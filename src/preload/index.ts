@@ -15,7 +15,7 @@ import type {
   SettingsApi,
   UpdateBlockInput,
   UpdatePageInput
-} from '../shared/types'
+} from '@neonity/notion-clone-shared'
 
 const api: NotionApi = {
   listPages: () => ipcRenderer.invoke('pages:list'),

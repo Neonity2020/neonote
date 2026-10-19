@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { useStore } from '@/store'
 import { useSettings } from '@/settingsStore'
 import { Button } from './ui/button'
-import type { AiEvent, AiPageContext, AiStatus } from '../../../shared/types'
+import type { AiEvent, AiPageContext, AiStatus } from '@neonity/notion-clone-shared'
 
 interface ToolCallItem {
   id: string

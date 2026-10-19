@@ -65,7 +65,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [类型参考](reference/types.md) | `shared/types.ts` 全量类型说明 |
+| [类型参考](reference/types.md) | shared 包（`@neonity/notion-clone-shared`）全量类型说明 |
 | [IPC 通道表](reference/ipc-channels.md) | 所有通道、参数、返回值一览 |
 | [文件地图](reference/file-map.md) | 每个源文件负责什么 |
 
@@ -81,6 +81,7 @@
 | [0003](adr/0003-json-block-content.md) | 块内容以 JSON 文本存储 |
 | [0004](adr/0004-pi-agent-sandbox.md) | AI 走 Pi SDK 并禁用内置工具 |
 | [0005](adr/0005-fractional-position-ordering.md) | 分数位置排序（position） |
+| [0006](adr/0006-extract-renderer-package.md) | 前端抽取为可发布的 npm 包 |
 
 ---
 
@@ -148,5 +149,6 @@ docs/
     ├── 0002-electron-vite-three-process.md
     ├── 0003-json-block-content.md
     ├── 0004-pi-agent-sandbox.md
-    └── 0005-fractional-position-ordering.md
+    ├── 0005-fractional-position-ordering.md
+    └── 0006-extract-renderer-package.md
 ```

@@ -1,5 +1,5 @@
 import { ImagePlus } from 'lucide-react'
-import type { Block } from '../../../shared/types'
+import type { Block } from '@neonity/notion-clone-shared'
 import { useStore } from '@/store'
 import { focusSoon, requestFocus } from '@/lib/caret'
 

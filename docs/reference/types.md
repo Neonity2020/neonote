@@ -1,6 +1,6 @@
 # 类型参考
 
-全部类型定义在 `src/shared/types.ts`。主进程、preload、渲染进程**共用**这一份。
+全部类型定义在 `packages/shared/src/index.ts`。主进程、preload、渲染进程**共用**这一份。
 
 ---
 
@@ -303,7 +303,7 @@ export interface NotionApi {
 
 ## 窗口全局对象
 
-`src/renderer/src/env.d.ts`：
+`packages/renderer/src/env.d.ts`：
 
 ```ts
 declare global {
@@ -315,7 +315,7 @@ declare global {
 }
 ```
 
-因为直接引用 `shared/types.ts` 里的接口，**改了 `shared/types.ts`，
+因为直接引用 shared 包里的接口，**改了 shared 包，
 渲染层的 `window.api.xxx` 立刻就有类型提示**——不需要手动同步任何声明。
 
 ---

@@ -2,7 +2,7 @@ import { app, dialog } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
-import type { SaveImageInput, SavedImage } from '../shared/types'
+import type { SaveImageInput, SavedImage } from '@neonity/notion-clone-shared'
 
 export const ASSET_SCHEME = 'nc-asset'
 

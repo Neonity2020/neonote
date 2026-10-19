@@ -30,7 +30,7 @@ interface StoreState {
 
 ### 防抖落库
 
-`src/renderer/src/store.ts:5`：
+`packages/renderer/src/store.ts:5`：
 
 ```ts
 const SAVE_DEBOUNCE = 400

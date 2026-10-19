@@ -13,7 +13,7 @@ import {
   Type,
   type LucideIcon
 } from 'lucide-react'
-import type { BlockType } from '../../../shared/types'
+import type { BlockType } from '@neonity/notion-clone-shared'
 
 export interface BlockTypeMeta {
   type: BlockType

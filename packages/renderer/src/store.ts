@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { Block, BlockContent, BlockType, PageMeta } from '../../shared/types'
-import { createTableData, tableToText } from '../../shared/types'
+import type { Block, BlockContent, BlockType, PageMeta } from '@neonity/notion-clone-shared'
+import { createTableData, tableToText } from '@neonity/notion-clone-shared'
 
 const SAVE_DEBOUNCE = 400
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()

@@ -4,11 +4,11 @@
 
 ---
 
-## `src/shared/`
+## `packages/shared/`（@neonity/notion-clone-shared）
 
 | 文件 | 职责 | 关键导出 |
 | --- | --- | --- |
-| `types.ts` | 全部共享类型、常量、纯函数 | `BlockType`、`Block`、`PageMeta`、`AppSettings`、`AiApi`、`NotionApi`、`SettingsApi`、`DEFAULT_SETTINGS`、`createTableData`、`tableToText`、`WELCOME_PAGE_TITLE` |
+| `src/index.ts` | 全部共享类型、常量、纯函数 | `BlockType`、`Block`、`PageMeta`、`AppSettings`、`AiApi`、`NotionApi`、`SettingsApi`、`DEFAULT_SETTINGS`、`createTableData`、`tableToText`、`WELCOME_PAGE_TITLE` |
 
 > **唯一**被主进程和渲染进程同时 import 的地方。没有副作用，没有依赖。
 
@@ -43,15 +43,16 @@
 
 ---
 
-## `src/renderer/src/`
+## `packages/renderer/`（@neonity/notion-clone-ui）
 
 ### 入口与外壳
 
 | 文件 | 职责 |
 | --- | --- |
-| `main.tsx` | React 挂载，引入 `index.css` |
-| `App.tsx` | 应用外壳：主题分发、CSS 变量下发、AI 变更订阅、面板开关 |
-| `index.css` | CSS 变量、编辑器专用样式、滚动条 |
+| `src/main.tsx` | React 挂载，引入 `index.css`（应用启动入口） |
+| `src/index.ts` | npm 发布入口：导出 `App`、两个 store、主要组件 |
+| `src/App.tsx` | 应用外壳：主题分发、CSS 变量下发、AI 变更订阅、面板开关 |
+| `src/index.css` | CSS 变量、编辑器专用样式、滚动条 |
 
 ### 状态
 
@@ -98,11 +99,13 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `electron.vite.config.ts` | 三段构建配置、路径别名、外部化策略 |
-| `tailwind.config.js` | 语义色 token、圆角、`darkMode: ['class']` |
-| `postcss.config.js` | PostCSS 插件：tailwindcss + autoprefixer |
-| `tsconfig.json` | 严格模式、`@/*` 路径别名、`noEmit` |
-| `package.json` | 脚本、依赖、electron-builder 配置 |
+| `electron.vite.config.ts` | 三段构建配置、renderer root 指向 `packages/renderer`、路径别名、外部化策略 |
+| `packages/renderer/tailwind.config.js` | 语义色 token、圆角、`darkMode: ['class']` |
+| `packages/renderer/postcss.config.js` | PostCSS 插件：tailwindcss（显式指向包内 tailwind 配置）+ autoprefixer |
+| `tsconfig.json`（根） | 主进程/preload 的严格模式类型检查 |
+| `packages/renderer/tsconfig.json` | 渲染进程类型检查，`@/*` 别名 |
+| `packages/shared/tsconfig.json` | shared 包类型检查 |
+| `package.json` | workspaces、脚本、依赖、electron-builder 配置 |
 | `build/entitlements.mac.plist` | macOS 签名权限（JIT 等） |
 | `build/entitlements.mac.inherit.plist` | 辅助进程的继承权限 |
 | `scripts/sign-mac.js` | electron-builder `afterPack` 钩子，做 macOS 签名 |
@@ -114,7 +117,7 @@
 
 | 我想改… | 去这些文件 |
 | --- | --- |
-| 加一种块类型 | `shared/types.ts` → `renderer/lib/blockTypes.tsx` → `renderer/components/BlockItem.tsx` → `main/ai.ts` |
+| 加一种块类型 | shared 包 → `renderer/lib/blockTypes.tsx` → `renderer/components/BlockItem.tsx` → `main/ai.ts` |
 | 改块的编辑行为 | `renderer/components/BlockItem.tsx` |
 | 改表格行为 | `renderer/components/TableBlock.tsx` |
 | 改侧边栏拖拽 | `renderer/components/Sidebar.tsx`（落点算法在 `updatePreview`） |

@@ -22,7 +22,7 @@
                 │ IPC (invoke / send)          │ 自定义协议
 ┌───────────────▼──────────────┐   ┌───────────▼──────────────┐
 │ 预加载 (Context Bridge)      │   │ 渲染进程 (Chromium)      │
-│ src/preload/index.ts         │   │ src/renderer/src/        │
+│ src/preload/index.ts         │   │ packages/renderer/src/        │
 │                              │   │                          │
 │ contextBridge.exposeInMain   │   │  App.tsx                 │
 │ World('api' | 'ai' |         │──▶│   ├── Sidebar            │
@@ -57,18 +57,20 @@
 ## 目录结构
 
 ```
-src/
+src/                       Electron 宿主
 ├── main/            主进程：Node 环境，碰数据库和文件系统
 │   ├── index.ts     入口：窗口、协议、IPC 路由
 │   ├── db.ts        SQLite 数据访问层
 │   ├── assets.ts    图片资源
 │   ├── settings.ts  设置服务
 │   └── ai.ts        AI 会话与工具
-├── preload/         唯一的进程间桥梁
-│   └── index.ts     contextBridge 暴露 api / ai / settings
-├── shared/          主进程与渲染进程**共享**的类型与常量
-│   └── types.ts     全部类型定义、默认设置、表格工具函数
-└── renderer/src/    渲染进程：纯 React
+└── preload/         唯一的进程间桥梁
+    └── index.ts     contextBridge 暴露 api / ai / settings
+
+packages/
+├── shared/          @neonity/notion-clone-shared：主进程与渲染进程**共享**的类型与常量
+│   └── src/index.ts 全部类型定义、默认设置、表格工具函数
+└── renderer/src/    @neonity/notion-clone-ui：渲染进程（纯 React）
     ├── App.tsx      应用外壳、主题分发
     ├── store.ts     笔记状态（zustand）
     ├── settingsStore.ts  设置状态（zustand）
@@ -81,7 +83,7 @@ src/
 
 **分层规则**：
 
-- `shared/` 不依赖任何一方，可被主进程和渲染进程同时 import。
+- shared 包（`@neonity/notion-clone-shared`）不依赖任何一方，可被主进程和渲染进程同时 import。
 - 渲染进程**永远不直接访问**数据库或文件系统，只走 `window.api`。
 - 主进程**不持有 UI 状态**，只做数据与业务。
 
@@ -138,8 +140,8 @@ SELECT * FROM blocks WHERE page_id = ? ORDER BY position
 
 | Store | 职责 | 文件 |
 | --- | --- | --- |
-| `useStore` | 页面列表、当前页面、块列表、块编辑操作 | `src/renderer/src/store.ts` |
-| `useSettings` | 应用设置 | `src/renderer/src/settingsStore.ts` |
+| `useStore` | 页面列表、当前页面、块列表、块编辑操作 | `packages/renderer/src/store.ts` |
+| `useSettings` | 应用设置 | `packages/renderer/src/settingsStore.ts` |
 
 渲染进程**不缓存**从数据库读到的完整页面树之外的东西。`listPages` 返回全量页面列表，
 前端自己用 `parentId` 拼树（`buildTree`）。

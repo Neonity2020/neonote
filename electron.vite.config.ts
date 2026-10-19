@@ -10,7 +10,9 @@ delete process.env.ELECTRON_RUN_AS_NODE
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // @neonity/notion-clone-shared 是 .ts 源码包（main 指向 src/index.ts），不能被
+    // 运行时 require，必须排除出外部化、直接打进 out/main
+    plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })],
     build: {
       rollupOptions: {
         external: ['node:sqlite']
@@ -18,14 +20,21 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })]
   },
   renderer: {
+    root: 'packages/renderer',
     resolve: {
       alias: {
-        '@': resolve(__dirname, 'src/renderer/src')
+        '@': resolve(__dirname, 'packages/renderer/src')
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    build: {
+      rollupOptions: {
+        // electron-vite 的默认 input 固定从 src/renderer/index.html 找，自定义 root 后必须显式指定
+        input: resolve(__dirname, 'packages/renderer/index.html')
+      }
+    }
   }
 })

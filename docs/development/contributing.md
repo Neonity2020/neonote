@@ -56,15 +56,15 @@ b949fc4 build: 接入 electron-builder 打包 Windows NSIS 安装器
 
 - **渲染进程禁止** import `node:` 模块、禁止直接访问文件系统。
 - **主进程**只做数据与业务，不持有 UI 状态。
-- **`shared/types.ts`** 不依赖任何一方。
+- **shared 包（`@neonity/notion-clone-shared`）** 不依赖任何一方。
 
 ### 加一个块类型要改的地方
 
 这是最容易漏的地方，共 **4 处**：
 
-1. `src/shared/types.ts` —— `BlockType` 联合类型加成员
-2. `src/renderer/src/lib/blockTypes.tsx` —— `BLOCK_TYPE_ITEMS` 加元数据（label / description / keywords / icon）
-3. `src/renderer/src/components/BlockItem.tsx` —— `renderContent()` 加渲染分支
+1. `packages/shared/src/index.ts` —— `BlockType` 联合类型加成员
+2. `packages/renderer/src/lib/blockTypes.tsx` —— `BLOCK_TYPE_ITEMS` 加元数据（label / description / keywords / icon）
+3. `packages/renderer/src/components/BlockItem.tsx` —— `renderContent()` 加渲染分支
 4. `src/main/ai.ts` —— `buildNotesTools()` 里的 `blockTypeSchema` 加枚举
 
 漏掉第 4 处的话，AI 就无法创建这种类型的块。
@@ -73,15 +73,15 @@ b949fc4 build: 接入 electron-builder 打包 Windows NSIS 安装器
 
 共 **3 处**，顺序不能少：
 
-1. `src/shared/types.ts` —— 定义类型，挂到对应的 `*Api` 接口
+1. `packages/shared/src/index.ts` —— 定义类型，挂到对应的 `*Api` 接口
 2. `src/main/index.ts` —— `ipcMain.handle()`
 3. `src/preload/index.ts` —— 加一行转发
 
 ### 加一个设置项要改的地方
 
-1. `src/shared/types.ts` —— `AppSettings` 加字段
+1. `packages/shared/src/index.ts` —— `AppSettings` 加字段
 2. `src/main/settings.ts` —— **`sanitize()` 里加校验**，否则坏值会直接进库
-3. `src/renderer/src/components/SettingsPanel.tsx` —— 加 UI
+3. `packages/renderer/src/components/SettingsPanel.tsx` —— 加 UI
 
 `DEFAULT_SETTINGS` 也别忘了更新。
 

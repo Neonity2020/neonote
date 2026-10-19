@@ -12,7 +12,7 @@ import {
   type ContentWidth,
   type DeepPartial,
   type ThemeMode
-} from '../shared/types'
+} from '@neonity/notion-clone-shared'
 
 /**
  * 设置服务:设置按分区(theme / editor / ai)序列化进 SQLite 的 settings 表。

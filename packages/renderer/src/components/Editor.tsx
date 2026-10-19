@@ -12,7 +12,7 @@ import { FileText } from 'lucide-react'
 import { useStore } from '@/store'
 import { filterBlockTypes, type BlockTypeMeta } from '@/lib/blockTypes'
 import { focusBlock, requestCellFocus, requestFocus, setBlockElementText } from '@/lib/caret'
-import { createTableData, tableToText } from '../../../shared/types'
+import { createTableData, tableToText } from '@neonity/notion-clone-shared'
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
 

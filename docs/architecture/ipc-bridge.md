@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld('api', api)
 | `window.ai` | `AiApi` | AI 会话与事件订阅 |
 | `window.settings` | `SettingsApi` | 设置读写与应用信息 |
 
-类型定义全部在 `src/shared/types.ts`，`src/renderer/src/env.d.ts` 里声明到 `Window` 全局。
+类型定义全部在 `packages/shared/src/index.ts`，`packages/renderer/src/env.d.ts` 里声明到 `Window` 全局。
 
 ---
 
@@ -159,14 +159,14 @@ onEvent: (cb: (event: AiEvent) => void) => {
 
 要加一个新能力，顺序是：
 
-1. **在 `src/shared/types.ts` 定义入参 / 出参类型**，并挂到对应的 `*Api` 接口上。
+1. **在 `packages/shared/src/index.ts` 定义入参 / 出参类型**，并挂到对应的 `*Api` 接口上。
 2. **主进程**：在 `db.ts`（数据）或对应服务文件里实现逻辑，
    然后在 `index.ts` 的 `registerIpc()` 里 `ipcMain.handle('域:动作', ...)`。
 3. **preload**：在对应对象里加一行转发。
-4. **渲染层**：在 `src/renderer/src/env.d.ts` 确认全局类型已自动更新（类型来自 `shared/types.ts`，无需手改）。
+4. **渲染层**：在 `packages/renderer/src/env.d.ts` 确认全局类型已自动更新（类型来自 shared 包，无需手改）。
 
 > `env.d.ts` 里 `Window` 接口直接引用 `NotionApi` / `AiApi` / `SettingsApi`，
-> 所以只要 `shared/types.ts` 改了，渲染层的 `window.api.xxx` 立刻有类型提示——
+> 所以只要 shared 包的类型改了，渲染层的 `window.api.xxx` 立刻有类型提示——
 > 这是 shared 目录存在的核心价值。
 
 ---

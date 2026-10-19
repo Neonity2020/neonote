@@ -39,8 +39,8 @@ import {
   DropdownMenuTrigger
 } from './ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
-import { WELCOME_PAGE_TITLE } from '../../../shared/types'
-import type { PageMeta, SearchResult } from '../../../shared/types'
+import { WELCOME_PAGE_TITLE } from '@neonity/notion-clone-shared'
+import type { PageMeta, SearchResult } from '@neonity/notion-clone-shared'
 
 /** 每级缩进宽度,行内 padding 与拖拽投影必须用同一个值 */
 const INDENT = 14

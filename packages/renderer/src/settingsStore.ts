@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { DEFAULT_SETTINGS, type AppSettings, type DeepPartial } from '../../shared/types'
+import { DEFAULT_SETTINGS, type AppSettings, type DeepPartial } from '@neonity/notion-clone-shared'
 
 interface SettingsState {
   settings: AppSettings

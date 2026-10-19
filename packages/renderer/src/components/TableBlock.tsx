@@ -6,8 +6,8 @@ import {
   ArrowUpFromLine,
   Trash2
 } from 'lucide-react'
-import type { Block, TableData } from '../../../shared/types'
-import { createTableData, tableToText } from '../../../shared/types'
+import type { Block, TableData } from '@neonity/notion-clone-shared'
+import { createTableData, tableToText } from '@neonity/notion-clone-shared'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { consumeCellFocus, focusSoon, getCaretOffset, setCaretOffset } from '@/lib/caret'

@@ -8,12 +8,12 @@
 
 ### Tailwind
 
-`tailwind.config.js`：
+`packages/renderer/tailwind.config.js`（配置随前端包走，content 相对包根）：
 
 ```js
 module.exports = {
   darkMode: ['class'],
-  content: ['./src/renderer/index.html', './src/renderer/src/**/*.{ts,tsx}'],
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       borderRadius: {
@@ -44,13 +44,13 @@ module.exports = {
 
 ### 路径别名
 
-PostCSS 配置无关，Tailwind 的 `content` 已经覆盖了 `src/renderer/src/**/*.{ts,tsx}`。
+PostCSS 配置无关，Tailwind 的 `content` 已经覆盖了 `packages/renderer/src/**/*.{ts,tsx}`。
 
 ---
 
 ## 颜色变量
 
-全部定义在 `src/renderer/src/index.css`，用 **HSL 的三个分量**（不含 `hsl()` 包裹），
+全部定义在 `packages/renderer/src/index.css`，用 **HSL 的三个分量**（不含 `hsl()` 包裹），
 这样 Tailwind 才能拼成 `hsl(var(--x))`。
 
 ### 浅色（`:root`）
@@ -99,7 +99,7 @@ PostCSS 配置无关，Tailwind 的 `content` 已经覆盖了 `src/renderer/src/
 
 ## 主题切换
 
-`src/renderer/src/App.tsx`：
+`packages/renderer/src/App.tsx`：
 
 ```tsx
 const [systemDark, setSystemDark] = useState(
@@ -233,7 +233,7 @@ Firefox 不支持 `::-webkit-scrollbar`，会保持默认样式。
 
 ## UI 组件
 
-`src/renderer/src/components/ui/` 是 shadcn/ui 风格的组件：
+`packages/renderer/src/components/ui/` 是 shadcn/ui 风格的组件：
 
 | 组件 | 依赖 |
 | --- | --- |
@@ -247,7 +247,7 @@ Firefox 不支持 `::-webkit-scrollbar`，会保持默认样式。
 
 ### `cn()` 工具
 
-`src/renderer/src/lib/utils.ts`：
+`packages/renderer/src/lib/utils.ts`：
 
 ```ts
 export function cn(...inputs: ClassValue[]): string {

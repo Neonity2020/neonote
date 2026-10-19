@@ -10,7 +10,7 @@ electron-vite 把应用拆成三段，各自有独立的构建配置：
 | --- | --- | --- | --- |
 | main | `src/main/index.ts` | `out/main/index.js` | CJS |
 | preload | `src/preload/index.ts` | `out/preload/index.js` | CJS |
-| renderer | `src/renderer/index.html` | `out/renderer/` | 静态资源 |
+| renderer | `packages/renderer/index.html` | `out/renderer/` | 静态资源 |
 
 ```bash
 npm run build
@@ -29,7 +29,7 @@ export default defineConfig({
     }
   },
   preload: { plugins: [externalizeDepsPlugin()] },
-  renderer: { resolve: { alias: { '@': resolve(__dirname, 'src/renderer/src') } } }
+  renderer: { resolve: { alias: { '@': resolve(__dirname, 'packages/renderer/src') } } }
 })
 ```
 

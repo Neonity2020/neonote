@@ -141,7 +141,7 @@ SELECT * FROM pages ORDER BY parent_id IS NOT NULL, position;
 ```
 
 这个排序保证**顶层页面在前**，同层按 `position` 升序。前端再用 `parentId` 把它拼成树
-（`buildTree`，`src/renderer/src/components/Sidebar.tsx:537`）。
+（`buildTree`，`packages/renderer/src/components/Sidebar.tsx:537`）。
 
 ### 级联删除
 

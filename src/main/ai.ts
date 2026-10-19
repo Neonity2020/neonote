@@ -18,8 +18,8 @@ import type {
   AppSettings,
   BlockContent,
   BlockType
-} from '../shared/types'
-import { tableToText } from '../shared/types'
+} from '@neonity/notion-clone-shared'
+import { tableToText } from '@neonity/notion-clone-shared'
 
 /**
  * AI 助手服务:在主进程内运行一个 Pi agent 会话。

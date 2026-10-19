@@ -14,8 +14,8 @@ import type {
   TableData,
   UpdateBlockInput,
   UpdatePageInput
-} from '../shared/types'
-import { tableToText, WELCOME_PAGE_TITLE } from '../shared/types'
+} from '@neonity/notion-clone-shared'
+import { tableToText, WELCOME_PAGE_TITLE } from '@neonity/notion-clone-shared'
 
 const POSITION_STEP = 1024
 

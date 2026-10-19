@@ -93,6 +93,7 @@ NNNN-简短英文-slug.md
 | [0003](0003-json-block-content.md) | 块内容以 JSON 文本存储 | 已接受 |
 | [0004](0004-pi-agent-sandbox.md) | AI 走 Pi SDK 并禁用内置工具 | 已接受 |
 | [0005](0005-fractional-position-ordering.md) | 分数位置排序（position） | 已接受 |
+| [0006](0006-extract-renderer-package.md) | 前端抽取为可发布的 npm 包 | 已接受 |
 
 ---
 

@@ -26,7 +26,7 @@
 [文本块: 光标后的文字]
 ```
 
-光标落在新生成的正文块开头。（实现见 `src/renderer/src/components/BlockItem.tsx:252`）
+光标落在新生成的正文块开头。（实现见 `packages/renderer/src/components/BlockItem.tsx:252`）
 
 ### 存储
 

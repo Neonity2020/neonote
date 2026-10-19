@@ -55,7 +55,7 @@
 
 ## 拖拽：改顺序与改层级
 
-侧边栏拖拽**不用** dnd-kit 的 `over` 判定，而是**自己算落点**（`src/renderer/src/components/Sidebar.tsx:134`）。
+侧边栏拖拽**不用** dnd-kit 的 `over` 判定，而是**自己算落点**（`packages/renderer/src/components/Sidebar.tsx:134`）。
 这是为了可预测性：拖影本身仍在列表里，用 `over` 会不断抖动。
 
 ### 落点计算规则

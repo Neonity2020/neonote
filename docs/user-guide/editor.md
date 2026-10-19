@@ -17,7 +17,7 @@
 
 ## 块的构成
 
-一个块由三部分组成（`src/shared/types.ts:68`）：
+一个块由三部分组成（`packages/shared/src/index.ts:68`）：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -46,7 +46,7 @@ onInput → updateBlockLocal(本地 state 立即更新)
         → window.api.updateBlock(落库)
 ```
 
-- **防抖窗口 400ms**（`src/renderer/src/store.ts:5`），连续输入只在停顿后写一次库。
+- **防抖窗口 400ms**（`packages/renderer/src/store.ts:5`），连续输入只在停顿后写一次库。
 - 同一块的多次编辑会**取消前一次待执行的写入**，不会堆积。
 - 切换页面、删除页面、AI 刷新数据前会调用 `flushSaves()`，把未落库的编辑强制写回。
 - 文本块禁用拼写检查（`spellCheck={false}`），中文输入不受影响。
@@ -129,7 +129,7 @@ onInput → updateBlockLocal(本地 state 立即更新)
 1. **AI 助手改了数据库** → 主进程广播 `ai:notes-changed` → 前端整体重载页面和块；
 2. **切换页面回来** → 重新从数据库拉取块列表。
 
-同步策略（`src/renderer/src/components/BlockItem.tsx:97`）：
+同步策略（`packages/renderer/src/components/BlockItem.tsx:97`）：
 
 - 块**正在被编辑**时，不打断用户，不覆盖 `textContent`；
 - 块**不在焦点**且 `textContent` 与 state 不一致时，才写回 DOM。

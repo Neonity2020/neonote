@@ -25,7 +25,7 @@ import {
   type ContentWidth,
   type EditorFontSize,
   type ThemeMode
-} from '../../../shared/types'
+} from '@neonity/notion-clone-shared'
 
 type SectionId = 'appearance' | 'ai' | 'data' | 'about'
 

@@ -13,7 +13,7 @@ import type {
   SaveImageInput,
   UpdateBlockInput,
   UpdatePageInput
-} from '../shared/types'
+} from '@neonity/notion-clone-shared'
 
 /** 窗口底色跟随主题设置,避免深色下启动闪白 */
 function resolvedTheme(): 'light' | 'dark' {

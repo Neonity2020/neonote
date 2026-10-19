@@ -26,6 +26,7 @@ npm install
 | `npm run dev` | 开发模式（Vite 热更新 + Electron） | — |
 | `npm run build` | 构建三段产物 | `out/` |
 | `npm start` | 预览已构建的产物 | — |
+| `npm run typecheck` | 三处 tsc 类型检查（根 + 两个包） | — |
 | `npm run dist` | 打包 Windows 安装包 | `dist/` |
 | `npm run dist:dir` | 打包 Windows 免安装目录 | `dist/` |
 | `npm run dist:mac` | 打包 macOS DMG | `dist/` |
@@ -40,37 +41,43 @@ npm install
 
 ```
 .
-├── src/
-│   ├── main/              主进程（Node 环境）
-│   │   ├── index.ts       入口：窗口、协议、IPC 路由
-│   │   ├── db.ts          SQLite 数据访问层
-│   │   ├── assets.ts      图片资源 + nc-asset:// 协议
-│   │   ├── settings.ts    设置服务
-│   │   └── ai.ts          AI 会话与工具
-│   ├── preload/
-│   │   └── index.ts       contextBridge 暴露 api / ai / settings
-│   ├── shared/
-│   │   └── types.ts       共享类型、常量、表格工具函数
-│   └── renderer/src/      渲染进程（纯 React）
-│       ├── main.tsx       入口
-│       ├── App.tsx        外壳
-│       ├── store.ts       笔记状态
-│       ├── settingsStore.ts 设置状态
-│       ├── lib/           纯工具函数
-│       │   ├── blockTypes.tsx
-│       │   ├── caret.ts
-│       │   └── utils.ts
-│       └── components/
-│           ├── Sidebar.tsx       页面树
-│           ├── Editor.tsx        编辑器
-│           ├── BlockItem.tsx     块渲染与键盘
-│           ├── TableBlock.tsx    表格
-│           ├── ImageBlock.tsx    图片
-│           ├── SlashMenu.tsx     斜杠菜单
-│           ├── EmojiPicker.tsx   表情选择
-│           ├── AssistantPanel.tsx AI 面板
-│           ├── SettingsPanel.tsx 设置面板
-│           └── ui/               shadcn/ui 基础组件
+├── src/                        Electron 宿主
+│   ├── main/                   主进程（Node 环境）
+│   │   ├── index.ts            入口：窗口、协议、IPC 路由
+│   │   ├── db.ts               SQLite 数据访问层
+│   │   ├── assets.ts           图片资源 + nc-asset:// 协议
+│   │   ├── settings.ts         设置服务
+│   │   └── ai.ts               AI 会话与工具
+│   └── preload/
+│       └── index.ts            contextBridge 暴露 api / ai / settings
+├── packages/
+│   ├── shared/                 @neonity/notion-clone-shared（IPC 契约层）
+│   │   └── src/index.ts        共享类型、常量、表格工具函数
+│   └── renderer/               @neonity/notion-clone-ui（前端包，可独立 npm 发布）
+│       ├── index.html          渲染进程入口 HTML
+│       ├── tailwind.config.js  语义色 token、圆角、darkMode
+│       ├── postcss.config.js   tailwindcss + autoprefixer
+│       └── src/                渲染进程（纯 React）
+│           ├── main.tsx        应用入口（index.html 引用）
+│           ├── index.ts        npm 发布入口（导出 App、store、组件）
+│           ├── App.tsx         外壳
+│           ├── store.ts        笔记状态
+│           ├── settingsStore.ts 设置状态
+│           ├── lib/            纯工具函数
+│           │   ├── blockTypes.tsx
+│           │   ├── caret.ts
+│           │   └── utils.ts
+│           └── components/
+│               ├── Sidebar.tsx       页面树
+│               ├── Editor.tsx        编辑器
+│               ├── BlockItem.tsx     块渲染与键盘
+│               ├── TableBlock.tsx    表格
+│               ├── ImageBlock.tsx    图片
+│               ├── SlashMenu.tsx     斜杠菜单
+│               ├── EmojiPicker.tsx   表情选择
+│               ├── AssistantPanel.tsx AI 面板
+│               ├── SettingsPanel.tsx 设置面板
+│               └── ui/               shadcn/ui 基础组件
 ├── build/                 electron-builder 资源（macOS entitlements）
 ├── scripts/
 │   ├── sign-mac.js        electron-builder afterPack 钩子
@@ -85,7 +92,7 @@ npm install
 
 ## 路径别名
 
-渲染进程可以用 `@/` 指向 `src/renderer/src`：
+渲染进程可以用 `@/` 指向 `packages/renderer/src`：
 
 ```ts
 import { useStore } from '@/store'
@@ -95,10 +102,9 @@ import { cn } from '@/lib/utils'
 定义在两处，**都要改**：
 
 - `electron.vite.config.ts` —— Vite 解析
-- `tsconfig.json` —— TypeScript 类型解析
+- `packages/renderer/tsconfig.json` —— TypeScript 类型解析
 
-> `src/shared/` **没有**别名，用相对路径 import（如 `../../shared/types`）。
-> 因为主进程和 preload 不在 `@/` 的作用域内。
+> 共享契约在独立包 `@neonity/notion-clone-shared` 里，主进程、preload、渲染进程一律用包名 import。
 
 ---
 
@@ -108,11 +114,11 @@ import { cn } from '@/lib/utils'
 
 | 想做的事 | 改哪里 |
 | --- | --- |
-| 加一个块类型 | `shared/types.ts` 的 `BlockType` + `renderer/lib/blockTypes.tsx` 的元数据 + `BlockItem.tsx` 的渲染分支 + `main/ai.ts` 的工具 schema |
+| 加一个块类型 | shared 包的 `BlockType` + `renderer/lib/blockTypes.tsx` 的元数据 + `BlockItem.tsx` 的渲染分支 + `main/ai.ts` 的工具 schema |
 | 加一个数据库字段 | 优先扩展 `content` 的 JSON 形状（见 [数据模型](../architecture/data-model.md#演进与迁移)） |
-| 加一个 IPC 能力 | `shared/types.ts` → `main/index.ts` → `preload/index.ts`（三处，顺序不能少） |
-| 加一个设置项 | `shared/types.ts` 的 `AppSettings` + `main/settings.ts` 的 `sanitize()` + `SettingsPanel.tsx` |
-| 改主题色 | `renderer/src/index.css` 的 CSS 变量 |
+| 加一个 IPC 能力 | shared 包 → `main/index.ts` → `preload/index.ts`（三处，顺序不能少） |
+| 加一个设置项 | shared 包的 `AppSettings` + `main/settings.ts` 的 `sanitize()` + `SettingsPanel.tsx` |
+| 改主题色 | `packages/renderer/src/index.css` 的 CSS 变量 |
 | 改 AI 能力 | `main/ai.ts` 的 `buildNotesTools()` + 系统提示词 |
 
 **渲染进程不允许**直接 import `node:` 模块或访问文件系统。
@@ -152,7 +158,7 @@ sqlite3 "$(node -e "console.log(require('electron').app.getPath('userData'))")/n
 
 `electron-vite dev` 会自动重启主进程。渲染进程是热更新。
 
-### 改 `shared/types.ts` 要重启
+### 改 shared 包要重启
 
 类型改了之后，preload 和主进程都需要重新构建。
 
@@ -161,8 +167,10 @@ sqlite3 "$(node -e "console.log(require('electron').app.getPath('userData'))")/n
 ## 类型检查
 
 ```bash
-npx tsc --noEmit
+npm run typecheck
 ```
+
+根项目、`packages/shared`、`packages/renderer` 三处 tsc 串联执行。
 
 项目**没有**配置 ESLint / Prettier，代码风格靠人工保持一致：
 
@@ -181,6 +189,10 @@ npm install <pkg>
 
 `dependencies` 里的包会被 `externalizeDepsPlugin()` **排除在打包之外**，
 运行时从 `node_modules` 加载。`devDependencies` 只在构建时用。
+
+> 例外：`@neonity/notion-clone-shared` 是 .ts 源码包，已被显式 `exclude` 出外部化，
+> 直接打进 `out/main`（见 `electron.vite.config.ts`）。
+> 给渲染进程装依赖装到 `packages/renderer`，主进程依赖才装根目录。
 
 > 纯 ESM 的包在主进程里要用动态 `import()` 加载，
 > 因为主进程产物是 CJS。见 `main/ai.ts` 的 `loadSdk()`。

@@ -1,7 +1,7 @@
 # 块类型参考
 
-共 12 种块类型。类型定义在 `src/shared/types.ts:1`，渲染逻辑在
-`src/renderer/src/components/BlockItem.tsx:311`。
+共 12 种块类型。类型定义在 `packages/shared/src/index.ts:1`，渲染逻辑在
+`packages/renderer/src/components/BlockItem.tsx:311`。
 
 ---
 
@@ -103,14 +103,14 @@
 - 待办转换会重置 `checked` 为 `false`。
 - 其他转换只改类型并清空文本，块内原有的其他 `content` 字段保留。
 
-> 前缀的判定基于**整块文本精确匹配**（`matchMarkdown`，`src/renderer/src/components/BlockItem.tsx:21`），
+> 前缀的判定基于**整块文本精确匹配**（`matchMarkdown`，`packages/renderer/src/components/BlockItem.tsx:21`），
 > 所以 `1. ` 必须有空格，`#` 后面没有空格不触发。
 
 ---
 
 ## 类型转换规则
 
-通过斜杠菜单切换类型时（`setBlockType`，`src/renderer/src/store.ts:173`）：
+通过斜杠菜单切换类型时（`setBlockType`，`packages/renderer/src/store.ts:173`）：
 
 | 转换 | 副作用 |
 | --- | --- |
@@ -126,7 +126,7 @@
 
 在任意文本块输入 `/` 唤起。
 
-- 菜单项按**名称、描述、关键词**三者匹配过滤（`src/renderer/src/lib/blockTypes.tsx:45`）。
+- 菜单项按**名称、描述、关键词**三者匹配过滤（`packages/renderer/src/lib/blockTypes.tsx:45`）。
 - 关键词包含中英文与拼音首字母，例如 `表格` 块可被 `biaoge` / `bg` / `table` 命中。
 - `↑` / `↓` 移动选中项，`Enter` 应用，`Esc` 关闭。
 - 用鼠标点击时用 `onMouseDown` + `preventDefault()`，避免先触发 blur 丢失光标。
