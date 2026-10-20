@@ -17,11 +17,11 @@
 
 ## 块的构成
 
-一个块由三部分组成（`packages/shared/src/index.ts:68`）：
+一个块由三部分组成（`packages/shared/src/index.ts:299`）：
 
 | 字段 | 含义 |
 | --- | --- |
-| `type` | 块类型，12 选 1 |
+| `type` | 块类型，13 选 1 |
 | `content` | 内容对象，形状随类型变化 |
 | `position` | 在页面内的排序位置（浮点数） |
 
@@ -46,7 +46,7 @@ onInput → updateBlockLocal(本地 state 立即更新)
         → window.api.updateBlock(落库)
 ```
 
-- **防抖窗口 400ms**（`packages/renderer/src/store.ts:5`），连续输入只在停顿后写一次库。
+- **防抖窗口 400ms**（`packages/renderer/src/store.ts:7`），连续输入只在停顿后写一次库。
 - 同一块的多次编辑会**取消前一次待执行的写入**，不会堆积。
 - 切换页面、删除页面、AI 刷新数据前会调用 `flushSaves()`，把未落库的编辑强制写回。
 - 文本块禁用拼写检查（`spellCheck={false}`），中文输入不受影响。
@@ -129,12 +129,39 @@ onInput → updateBlockLocal(本地 state 立即更新)
 1. **AI 助手改了数据库** → 主进程广播 `ai:notes-changed` → 前端整体重载页面和块；
 2. **切换页面回来** → 重新从数据库拉取块列表。
 
-同步策略（`packages/renderer/src/components/BlockItem.tsx:97`）：
+同步策略（`packages/renderer/src/components/BlockItem.tsx:181`）：
 
 - 块**正在被编辑**时，不打断用户，不覆盖 `textContent`；
 - 块**不在焦点**且 `textContent` 与 state 不一致时，才写回 DOM。
 
 表格单元格采用同样策略：正在编辑的单元格不会被外部数据覆盖。
+
+AI 改动与用户输入撞在一起时，**以数据库版本为准**：AI 改过的那一块会采用 AI 的内容，
+用户那次还在防抖窗口里的输入被丢弃。反过来，AI 没碰过的块保留用户正在输入的内容。
+
+---
+
+## 块类型转换与光标
+
+用 Markdown 快捷输入（`- `、`[] `、`1. ` …）或斜杠菜单换块类型时，
+**光标会留在新类型的块里**，可以接着打字。
+
+> 实现上，段落那块 `contentEditable` 的 DOM 节点会被复用成新结构的外壳
+> （列表项外面多一层，勾选框、引用竖线都在里面），React 会把 `contentEditable`
+> 属性从它身上摘掉，真正的可编辑元素变成新创建的内层节点。
+> 所以类型切换后要在 React 提交完再把焦点放回新元素，否则光标会停在一个
+> 已经不能编辑的旧节点上，后面敲的字会全部丢失。
+>
+> 焦点是**换类型前**的状态判断的：只有当时焦点在这个块里才会被放回去，
+> 免得 AI 在后台改块类型时把用户正在输入的焦点抢走。
+> 放回时沿用换类型前的光标偏移，文本没有变化的话位置不变。
+
+---
+
+## 中文输入法
+
+输入法正在组词时，`Enter` 用来**确认候选词**，不会拆分块，表格里也不会跳格。
+组词结束之后 `Enter` 才恢复常规行为。
 
 ---
 
@@ -151,6 +178,6 @@ onInput → updateBlockLocal(本地 state 立即更新)
 
 ## 相关文档
 
-- [块类型参考](blocks.md) —— 12 种块的渲染与转换规则
+- [块类型参考](blocks.md) —— 13 种块的渲染与转换规则
 - [快捷键速查](shortcuts.md) —— 全部键盘操作
 - [图片与表格](media-and-tables.md) —— 图片和表格块的特殊编辑行为

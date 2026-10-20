@@ -40,7 +40,7 @@ function loadSdk(): Promise<typeof import('@earendil-works/pi-coding-agent')> {
 
 ## 会话创建
 
-`ensureSession()`（`src/main/ai.ts:428`）是**惰性**的：第一次 `ai:send` 或 `ai:status` 时才建。
+`ensureSession()`（`src/main/ai.ts:461`）是**惰性**的：第一次 `ai:send` 或 `ai:status` 时才建。
 
 ```ts
 const resourceLoader = new sdk.DefaultResourceLoader({
@@ -92,7 +92,7 @@ initPromise.catch(() => { initPromise = null })
 
 ## 模型解析
 
-`resolveModel(key)`（`src/main/ai.ts:134`）把设置里的 `"provider/id"` 解析成运行时模型对象：
+`resolveModel(key)`（`src/main/ai.ts:144`）把设置里的 `"provider/id"` 解析成运行时模型对象：
 
 ```ts
 const sep = key.indexOf('/')
@@ -122,7 +122,7 @@ return model
 如果创建时刷新失败（比如磁盘满、孤儿锁），快照会**空着**，导致模型解析不出、
 调用时抛 "No API key"，而且不会自己恢复。
 
-`ensureRuntime()`（`src/main/ai.ts:119`）针对这个问题：
+`ensureRuntime()`（`src/main/ai.ts:129`）针对这个问题：
 
 ```ts
 async function ensureRuntime(): Promise<ModelRuntime> {
@@ -151,11 +151,11 @@ Pi 给 `auth.json` 加锁的方式是创建一个**同名的空目录** `auth.js
 残留的空目录会让之后**每一次**认证读取和模型刷新都失败——
 界面上就表现为"设置里没有匹配的模型"。
 
-`cleanStaleAuthLock()`（`src/main/ai.ts:91`）的判断条件非常保守：
+`cleanStaleAuthLock()`（`src/main/ai.ts:99`）的判断条件非常保守：
 
 ```ts
 if (!existsSync(lockDir)) return
-if (!st.isDirectory() || readdirSync(lockDir).length > 0) return   // 必须��空目录
+if (!st.isDirectory() || readdirSync(lockDir).length > 0) return   // 必须是空目录
 if (Date.now() - st.mtimeMs < 60_000) return                       // 必须超过 60 秒没动
 rmdirSync(lockDir)
 ```
@@ -167,7 +167,7 @@ rmdirSync(lockDir)
 
 ## 错误本地化
 
-`humanizeAiError()`（`src/main/ai.ts:149`）把 SDK 的英文错误翻成可操作的中文：
+`humanizeAiError()`（`src/main/ai.ts:160`）把 SDK 的英文错误翻成可操作的中文：
 
 | 原始错误 | 转换后 |
 | --- | --- |
@@ -179,7 +179,7 @@ rmdirSync(lockDir)
 
 ## 系统提示词
 
-三段拼接（`buildSystemPrompt`，`src/main/ai.ts:63`）：
+三段拼接（`buildSystemPrompt`，`src/main/ai.ts:64`）：
 
 ```
 SYSTEM_PROMPT_BASE   基础说明 + 工具清单 + 行为准则开头
@@ -209,6 +209,10 @@ if (nextPrompt !== activeSystemPrompt) {
 await session.setModel(model)
 emit({ type: 'notice', text: `已切换模型:${model.provider}/${model.id}` })
 ```
+
+有一个例外：**切回「跟随 pi 默认」**。`setModel()` 只接受一个明确的模型对象，
+没法"取消指定"，所以这种情况会**重建会话**，让下一次提问走 pi 自己的默认选择。
+（否则设置里写着「跟随默认」，会话却还跑在旧模型上。）
 
 ---
 
@@ -248,7 +252,7 @@ function contextKey(ctx: AiPageContext): string {
 页面 id: <uuid>
 标题: 👋 欢迎使用 Notion Clone
 内容(每行 = 一个块,方括号内是块类型):
-- [block-id] (paragraph) 这是���个本地优先的块笔记应用
+- [block-id] (paragraph) 这是一个本地优先的块笔记应用
 - [block-id] (todo,未勾选) 试试勾选这个待办事项
 - [block-id] (todo,已勾选) 已完成的事项会显示删除线
 这是发送时的快照。要精确改动某个块请直接用上面的块 id;若怀疑内容已变化,先用 notes_read_page 重新读取。
@@ -281,6 +285,23 @@ const MUTATING_TOOLS = new Set([
 ```
 
 只要执行了写操作工具，就发一次 `ai:notes-changed`，渲染层收到后重新加载数据。
+
+### 事件发给哪个窗口
+
+推送目标**不缓存**，每次发送时从 `BrowserWindow.getAllWindows()` 里取当前还活着的那个。
+
+macOS 上关掉最后一个窗口应用并不会退出（`window-all-closed` 里对 darwin 做了例外），
+再从 Dock 点开时会新建一个窗口。如果主进程缓存着最初的窗口引用，
+关掉它之后所有 `ai:event` 都会被 `isDestroyed()` 挡掉——新窗口里助手看起来"死了"：
+没有流式输出，AI 改过的笔记也不会刷新。
+
+### 渲染层按消息 id 归位
+
+`notice`（自动重试、切换模型）会作为一条独立消息插进对话。如果渲染层按"最后一条消息"
+更新，收到 `notice` 之后的正文增量就会另起一个气泡，答案被截成两段，
+而前一个气泡里的工具徽标永远等不到 `tool_end`，一直转圈。
+
+所以渲染层记下 `run_start` 建的那条消息的 id，增量与工具事件都归到那条消息上。
 
 ---
 

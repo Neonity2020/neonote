@@ -21,14 +21,19 @@ npm run build
 ```ts
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // shared 包是 .ts 源码包，必须排除出外部化，直接打进 out/main
+    plugins: [
+      externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })
+    ],
     build: {
       rollupOptions: {
         external: ['node:sqlite']     // Node 内置模块，由 Electron 的 Node 运行时提供
       }
     }
   },
-  preload: { plugins: [externalizeDepsPlugin()] },
+  preload: {
+    plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })]
+  },
   renderer: { resolve: { alias: { '@': resolve(__dirname, 'packages/renderer/src') } } }
 })
 ```

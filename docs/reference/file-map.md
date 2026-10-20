@@ -67,7 +67,7 @@
 | --- | --- |
 | `lib/utils.ts` | `cn()`（clsx + tailwind-merge） |
 | `lib/caret.ts` | 光标偏移计算、焦点注册表、待处理焦点/单元格焦点/滚动请求 |
-| `lib/blockTypes.tsx` | 12 种块的元数据、过滤、占位提示 |
+| `lib/blockTypes.tsx` | 13 种块的元数据、过滤、占位提示 |
 | `lib/wikiLink.ts` | 双链装饰器（把 `[[标题]]` 包成可点击 span）、`[[` 触发点查找、链接插入 |
 
 ### 组件
@@ -78,6 +78,7 @@
 | `Editor.tsx` | 编辑器外壳：标题、图标、斜杠菜单状态、拖拽排序上下文、有序列表编号 |
 | `BlockItem.tsx` | 单个块的渲染 + 全部键盘行为（拆分/合并/导航/粘贴/Markdown 前缀） |
 | `TableBlock.tsx` | 表格：单元格编辑、键盘导航、增删行列工具条 |
+| `DatabaseBlock.tsx` | 数据库：属性定义、记录编辑、搜索与排序 |
 | `ImageBlock.tsx` | 图片：选择、删除、导航 |
 | `SlashMenu.tsx` | 斜杠命令菜单（纯展示） |
 | `LinkPicker.tsx` | 双链页面选择器（`[[` 触发，含「新建页面」项） |
@@ -120,7 +121,8 @@
 
 | 我想改… | 去这些文件 |
 | --- | --- |
-| 加一种块类型 | shared 包 → `renderer/lib/blockTypes.tsx` → `renderer/components/BlockItem.tsx` → `main/ai.ts` |
+| 加一种块类型 | shared 包 → `renderer/lib/blockTypes.tsx` → `renderer/components/BlockItem.tsx` → `main/ai.ts`；有专门视图的块（如表格、数据库）还要加自己的组件 |
+| 改数据库块行为 | `renderer/components/DatabaseBlock.tsx` |
 | 改块的编辑行为 | `renderer/components/BlockItem.tsx` |
 | 改表格行为 | `renderer/components/TableBlock.tsx` |
 | 改侧边栏拖拽 | `renderer/components/Sidebar.tsx`（落点算法在 `updatePreview`） |

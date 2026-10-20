@@ -12,10 +12,11 @@ import { FileText } from 'lucide-react'
 import { useStore } from '@/store'
 import { filterBlockTypes, type BlockTypeMeta } from '@/lib/blockTypes'
 import { focusBlock, requestCellFocus, requestFocus, setBlockElementText } from '@/lib/caret'
-import { createTableData, tableToText } from '@neonity/notion-clone-shared'
+import { createTableData, tableToText, createDatabaseData, databaseToText } from '@neonity/notion-clone-shared'
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
 import { LinkPanel } from './LinkPanel'
+import newNoteWizardBackground from '@/assets/new-note-wizard-bg.png'
 
 interface SlashState {
   blockId: string
@@ -43,10 +44,19 @@ export function Editor(): JSX.Element {
   const [slashIndex, setSlashIndex] = useState(0)
 
   const slashItems = useMemo(() => (slash ? filterBlockTypes(slash.filter) : []), [slash])
+  const showNewNoteBackground =
+    !blocksLoading &&
+    !title.trim() &&
+    blocks.length === 1 &&
+    blocks[0].type === 'paragraph' &&
+    !(blocks[0].content.text ?? '').trim()
 
+  // Keep the draft in sync with the stored title. It has to react to the title
+  // itself, not only to a page switch: a rename made in the sidebar would
+  // otherwise be overwritten by the next character typed here.
   useEffect(() => {
     setTitle(page?.title ?? '')
-  }, [currentPageId])
+  }, [currentPageId, page?.title])
 
   // Auto-resize title textarea as the user types
   useEffect(() => {
@@ -61,6 +71,8 @@ export function Editor(): JSX.Element {
     setSlashIndex(0)
   }, [slash?.filter])
 
+  // Numbering restarts whenever a non-numbered block interrupts the run, so the numbers match
+  // what the user sees on screen.
   const numbers = useMemo(() => {
     const map = new Map<string, number>()
     let counter = 0
@@ -75,6 +87,7 @@ export function Editor(): JSX.Element {
     return map
   }, [blocks])
 
+  // A 4px activation distance keeps a plain click inside the text from starting a drag.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
   const handleDragEnd = (event: DragEndEvent): void => {
@@ -95,8 +108,17 @@ export function Editor(): JSX.Element {
     const blockId = slash.blockId
     setSlash(null)
 
+    if (item.type === 'database') {
+      const database = createDatabaseData()
+      setBlockElementText(blockId, '')
+      setBlockType(blockId, 'database')
+      updateBlockLocal(blockId, { database, text: databaseToText(database) })
+      requestCellFocus(blockId)
+      return
+    }
+
     if (item.type === 'table') {
-      // 表格没有单一可编辑元素,初始化数据后把光标交给第一个单元格
+      // A table has no single editable element, so the focus goes to the first cell.
       const table = createTableData()
       setBlockElementText(blockId, '')
       setBlockType(blockId, 'table')
@@ -157,10 +179,20 @@ export function Editor(): JSX.Element {
   }
 
   return (
-    <div
-      className="mx-auto w-full px-20 pb-[30vh] pt-14"
-      style={{ maxWidth: 'var(--editor-max-width, 768px)' }}
-    >
+    <>
+      {showNewNoteBackground && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-55 transition-opacity duration-300 dark:opacity-[0.16]"
+          style={{ backgroundImage: `url(${newNoteWizardBackground})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-background/15 via-background/5 to-background/30 dark:from-background/45 dark:via-background/25 dark:to-background/60" />
+        </div>
+      )}
+      <div
+        className="relative z-[1] mx-auto w-full px-20 pb-[30vh] pt-14"
+        style={{ maxWidth: 'var(--editor-max-width, 768px)' }}
+      >
       <div className="relative">
         <button
           className="mb-1 flex h-12 w-12 items-center justify-center rounded-md text-4xl transition-colors hover:bg-accent"
@@ -217,10 +249,12 @@ export function Editor(): JSX.Element {
         </DndContext>
       )}
 
-      {/* 双向链接:谁引用了本页、本页引用了谁 */}
+      {/* Bidirectional links: who references this page, and what this page references. */}
       {currentPageId && <LinkPanel pageId={currentPageId} />}
 
+      {/* Clicking the empty area below the blocks appends a new paragraph at the end. */}
       <div className="min-h-[30vh] cursor-text" onClick={appendAtEnd} />
-    </div>
+      </div>
+    </>
   )
 }

@@ -82,7 +82,7 @@
 
 | 全局变量 | 覆盖通道 |
 | --- | --- |
-| `window.api` | `pages:*`、`blocks:*`、`search:*`、`images:*` |
+| `window.api` | `pages:*`、`blocks:*`、`search:*`、`links:*`、`images:*` |
 | `window.ai` | `ai:*` |
 | `window.settings` | `settings:*` |
 

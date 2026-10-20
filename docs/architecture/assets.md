@@ -1,6 +1,6 @@
 # 资源管线
 
-图片文件存在**磁盘**，数据库只存**引用**。本��文档讲清从粘贴到渲染、再到回收的完整链路。
+图片文件存在**磁盘**，数据库只存**引用**。本文档讲清从粘贴到渲染、再到回收的完整链路。
 
 ---
 
@@ -83,7 +83,7 @@ image/avif → .avif    image/x-icon → .ico
 
 ### 协议注册
 
-必须在 `app.whenReady()` **之前**调用 `registerSchemesAsPrivileged`（`src/main/index.ts:98`）：
+必须在 `app.whenReady()` **之前**调用 `registerSchemesAsPrivileged`（`src/main/index.ts:122`）：
 
 ```ts
 protocol.registerSchemesAsPrivileged([

@@ -13,6 +13,8 @@ interface ToolCallItem {
   isError?: boolean
 }
 
+// A chat message. The assistant message is patched in place while a run streams in: text and
+// thinking are appended to, and tool calls are added or marked done.
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant' | 'notice'
@@ -40,7 +42,8 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // 当前页面上下文:发送时自动带过去,省得模型每轮都要自己读一遍
+  // Current page context: attached automatically, so the model does not read the page again on
+  // every turn.
   const pages = useStore((s) => s.pages)
   const currentPageId = useStore((s) => s.currentPageId)
   const blocks = useStore((s) => s.blocks)
@@ -58,7 +61,10 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
     }
   }, [modelSetting])
 
-  /** 初始化失败后手动重试:先丢弃旧会话(可能是在坏环境下建的),再重新取状态 */
+  /**
+   * Manual retry after a failed initialization: the old session is discarded first, because it may
+   * have been created in a broken environment, and then the status is fetched again.
+   */
   async function retry(): Promise<void> {
     setRetrying(true)
     try {
@@ -69,6 +75,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
     }
   }
 
+  // Subscribe to the AI event stream and unsubscribe again on unmount.
   useEffect(() => {
     const off = window.ai.onEvent((event: AiEvent) => {
       handleEvent(event)
@@ -81,11 +88,24 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
     if (el) el.scrollTop = el.scrollHeight
   }, [messages, streaming])
 
-  function updateLastAssistant(fn: (m: ChatMessage) => ChatMessage): void {
+  /**
+   * The message the stream currently belongs to.
+   *
+   * The assistant message is tracked by id instead of by position: a notice
+   * (a retry, a model switch) is appended as its own message, and updating
+   * "the last message" would then start a second bubble, cut the answer in two
+   * and leave the tool badges of the first one spinning forever.
+   */
+  const activeAssistantId = useRef<string | null>(null)
+
+  function updateAssistant(fn: (m: ChatMessage) => ChatMessage): void {
     setMessages((prev) => {
-      const idx = prev.length - 1
-      if (idx < 0 || prev[idx].role !== 'assistant') {
+      const idx = activeAssistantId.current
+        ? prev.findIndex((m) => m.id === activeAssistantId.current)
+        : -1
+      if (idx < 0) {
         const fresh: ChatMessage = { id: nextId(), role: 'assistant', text: '', thinking: '', tools: [] }
+        activeAssistantId.current = fresh.id
         return [...prev, fn(fresh)]
       }
       const next = [...prev]
@@ -98,25 +118,26 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
     switch (event.type) {
       case 'run_start':
         setStreaming(true)
-        setMessages((prev) => [
-          ...prev,
-          { id: nextId(), role: 'assistant', text: '', thinking: '', tools: [] }
-        ])
+        setMessages((prev) => {
+          const id = nextId()
+          activeAssistantId.current = id
+          return [...prev, { id, role: 'assistant', text: '', thinking: '', tools: [] }]
+        })
         break
       case 'text_delta':
-        updateLastAssistant((m) => ({ ...m, text: m.text + event.delta }))
+        updateAssistant((m) => ({ ...m, text: m.text + event.delta }))
         break
       case 'thinking_delta':
-        updateLastAssistant((m) => ({ ...m, thinking: m.thinking + event.delta }))
+        updateAssistant((m) => ({ ...m, thinking: m.thinking + event.delta }))
         break
       case 'tool_start':
-        updateLastAssistant((m) => ({
+        updateAssistant((m) => ({
           ...m,
           tools: [...m.tools, { id: event.id, label: event.label, done: false }]
         }))
         break
       case 'tool_end':
-        updateLastAssistant((m) => ({
+        updateAssistant((m) => ({
           ...m,
           tools: m.tools.map((t) =>
             t.id === event.id ? { ...t, done: true, isError: event.isError } : t
@@ -132,8 +153,9 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
       case 'run_end':
         setStreaming(false)
         if (event.error) {
-          updateLastAssistant((m) => ({ ...m, error: event.error }))
+          updateAssistant((m) => ({ ...m, error: event.error }))
         }
+        activeAssistantId.current = null
         break
     }
   }
@@ -180,7 +202,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
 
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-l bg-muted/20">
-      {/* 头部 */}
+      {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
@@ -196,7 +218,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
         </Button>
       </div>
 
-      {/* 初始化错误 */}
+      {/* Initialization error */}
       {!status.ready && status.error && (
         <div className="flex items-start gap-2 border-b bg-destructive/10 px-3 py-2 text-xs text-destructive">
           <span className="min-w-0 flex-1">AI 初始化失败:{status.error}</span>
@@ -212,7 +234,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
         </div>
       )}
 
-      {/* 当前页面上下文提示 */}
+      {/* Current page context notice */}
       <div className="flex items-center gap-1.5 border-b px-3 py-1.5 text-[11px] text-muted-foreground">
         <FileText className="h-3 w-3 shrink-0" />
         上下文:
@@ -228,7 +250,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
         )}
       </div>
 
-      {/* 消息列表 */}
+      {/* Message list */}
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
@@ -250,7 +272,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
         )}
       </div>
 
-      {/* 输入区 */}
+      {/* Input area */}
       <div className="border-t p-3">
         <div className="flex items-end gap-2">
           <textarea

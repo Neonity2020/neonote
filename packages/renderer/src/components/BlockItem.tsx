@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Plus } from 'lucide-react'
@@ -26,7 +26,10 @@ import { SlashMenu } from './SlashMenu'
 import { LinkPicker, type LinkPickerItem } from './LinkPicker'
 import { ImageBlock } from './ImageBlock'
 import { TableBlock } from './TableBlock'
+import { DatabaseBlock } from './DatabaseBlock'
 
+// Markdown shortcuts that turn a paragraph into another block type. They only apply while the
+// block is still a paragraph; once it has been converted, typing "#" again is just text.
 function matchMarkdown(text: string): BlockType | null {
   switch (text) {
     case '# ':
@@ -84,13 +87,15 @@ export function BlockItem({
   const pages = useStore((s) => s.pages)
 
   const text = block.content.text ?? ''
+  // The body is a plain-text contentEditable element: the browser owns the DOM children, so React
+  // never re-renders the body text. The DOM is patched by hand and the store is told afterwards.
   const elRef = useRef<HTMLElement | null>(null)
 
-  /* ---------- 双链 ---------- */
+  /* ---------- Wiki links ---------- */
 
-  /** 标题 → 目标页面。pages 引用不变时复用同一个解析函数 */
+  /** Title -> target page. The resolver is reused while the pages reference is unchanged. */
   const resolveLink = useMemo(() => getLinkResolver(pages), [pages])
-  /** 双链选择器:null 表示没在输入 [[ */
+  /** Wiki-link picker state; a null filter means no "[[" has been typed. */
   const [linkPicker, setLinkPicker] = useState<{ filter: string } | null>(null)
   const [linkIndex, setLinkIndex] = useState(0)
 
@@ -102,7 +107,7 @@ export function BlockItem({
     const items: LinkPickerItem[] = matched
       .slice(0, 20)
       .map((p) => ({ kind: 'page' as const, title: p.title, page: p }))
-    // 没有完全同名的页面时,提供"新建这个标题"一项
+    // Offer a "create this title" entry when no page has exactly that name.
     if (f && !pages.some((p) => p.title.trim().toLowerCase() === lower)) {
       items.push({ kind: 'create', title: f, page: null })
     }
@@ -112,6 +117,51 @@ export function BlockItem({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: block.id
   })
+
+  // The sortable wrapper, kept so the focus can be traced back to this block.
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const setWrapperRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      wrapperRef.current = el
+      setNodeRef(el)
+    },
+    [setNodeRef]
+  )
+
+  /**
+   * A type change swaps the editable element: the paragraph's contentEditable
+   * div is recycled as the wrapper of the new list or quote structure, React
+   * strips the contentEditable attribute from it, and the new editable div
+   * inside it is never focused. The old node keeps the DOM focus but is no
+   * longer editable, so everything typed after the conversion would be lost.
+   * Re-focusing after the commit puts the caret back into the new element.
+   */
+  const lastType = useRef(block.type)
+  // Render runs before React mutates the existing DOM, so this is the last
+  // reliable moment to check whether the soon-to-be-replaced editor owns the
+  // focus. By the time the layout effect runs, that old node may be detached
+  // and `wrapper.contains(document.activeElement)` would already be false.
+  const shouldRestoreFocus =
+    lastType.current !== block.type &&
+    !!document.activeElement &&
+    !!wrapperRef.current?.contains(document.activeElement)
+  // The caret offset is read in the same render, so the position inside the
+  // text survives the swap instead of jumping back to the start.
+  const caretOffset = shouldRestoreFocus && elRef.current ? getCaretOffset(elRef.current) : 0
+
+  useLayoutEffect(() => {
+    if (lastType.current === block.type) return
+    lastType.current = block.type
+    // Only take the focus back if it was inside this block before the swap.
+    // A type change made elsewhere (the AI, for instance) must not steal it.
+    if (!shouldRestoreFocus) return
+    // Stripping the contentEditable attribute drops the focus to the body, and
+    // that is the case to repair. A focus that landed on another element in the
+    // meantime was deliberate and must not be taken back.
+    const active = document.activeElement
+    if (active && active !== document.body && !wrapperRef.current?.contains(active)) return
+    focusBlock(block.id, caretOffset)
+  }, [block.type, block.id, shouldRestoreFocus, caretOffset])
 
   const registerRef = useCallback(
     (el: HTMLElement | null) => {
@@ -132,12 +182,12 @@ export function BlockItem({
   useEffect(() => {
     const el = elRef.current
     if (!el || !el.isContentEditable) return
-    // 正在编辑的块不能碰:改了会打断光标
+    // Never rewrite the block being edited: replacing its text would break the caret.
     if (document.activeElement === el) return
     if ((el.textContent ?? '') !== text) {
       el.textContent = text
     }
-    // 把正文里的 [[双链]] 装饰成可点击的链接
+    // Re-decorate the [[wiki links]] in the body so they render as clickable links.
     decorateWikiLinks(el, resolveLink)
   }, [text, resolveLink])
 
@@ -147,7 +197,7 @@ export function BlockItem({
     if (pending !== undefined) {
       focusBlock(block.id, pending ?? undefined)
     }
-    // 从反向链接跳进来时,滚动到被引用的那一块
+    // Scroll to the referenced block when arriving here from a backlink.
     if (consumeScrollRequest(block.id)) {
       requestAnimationFrame(() => {
         elRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -165,6 +215,8 @@ export function BlockItem({
     }
   }
 
+  // Enter splits the block at the caret: the text before the caret stays here and the rest moves
+  // into a new block that inherits the list/todo type.
   const handleSplit = (el: HTMLElement): void => {
     const fullText = el.textContent ?? ''
     const offset = getCaretOffset(el)
@@ -191,6 +243,9 @@ export function BlockItem({
     })
   }
 
+  // Backspace at offset 0 follows Notion's merge rules: an empty list item becomes a paragraph, a
+  // divider above is removed, an image/table neighbour only receives the focus, and otherwise the
+  // text is merged into the previous block.
   const handleBackspace = (e: React.KeyboardEvent, el: HTMLElement): void => {
     const fullText = el.textContent ?? ''
     const offset = getCaretOffset(el)
@@ -219,8 +274,8 @@ export function BlockItem({
       return
     }
 
-    if (prev.type === 'image' || prev.type === 'table') {
-      // 不能把文本并进图片/表格块,只把焦点移过去
+    if (prev.type === 'image' || prev.type === 'table' || prev.type === 'database') {
+      // Text cannot be merged into an image/table block, so only the focus moves.
       focusBlock(prev.id)
       return
     }
@@ -230,9 +285,9 @@ export function BlockItem({
     void state.removeBlock(block.id).then(() => focusSoon(prev.id, prevText.length))
   }
 
-  /* ---------- 双链交互 ---------- */
+  /* ---------- Wiki link interactions ---------- */
 
-  /** 点开一个链接:页面存在就跳过去,不存在就按标题建一个 */
+  /** Open a link: jump to the page when it exists, otherwise create it from the title. */
   const openLink = async (title: string): Promise<void> => {
     const target = resolveLink(title)
     if (target.pageId) {
@@ -242,30 +297,34 @@ export function BlockItem({
     await createPage(null, title)
   }
 
-  /** 点击正文里的双链 */
+  /** Click on a wiki link inside the body. */
   const handleLinkMouseDown = (e: React.MouseEvent<HTMLElement>): void => {
     const link = findWikiLinkElement(e.target)
     if (!link) return
     const title = link.dataset.wikiTitle ?? ''
     if (!title) return
-    // 不让浏览器把光标放进去,直接跳走
+    // Keep the browser from placing the caret inside the link; navigate instead.
     e.preventDefault()
     e.stopPropagation()
     void openLink(title)
   }
 
-  /** 选中一个目标后把 [[标题]] 写进正文 */
+  /**
+   * Write the selected target into the body as [[title]]. applyWikiLink has already patched the
+   * DOM, so the store is updated from the returned text and the decoration is re-applied at once
+   * instead of waiting for a blur.
+   */
   const applyLink = (item: LinkPickerItem): void => {
     setLinkPicker(null)
     const result = applyWikiLink(block.id, item.title)
     if (!result) return
     updateBlockLocal(block.id, { ...block.content, text: result.text })
-    // 立刻补上链接样式,不用等失焦
+    // Apply the link decoration right away, without waiting for a blur.
     const el = elRef.current
     if (el) decorateWikiLinks(el, resolveLink)
   }
 
-  /** 选择器打开时的键盘操作 */
+  /** Keyboard handling while the picker is open. */
   const handleLinkKey = (e: React.KeyboardEvent): boolean => {
     if (!linkPicker) return false
     if (linkItems.length === 0) {
@@ -301,6 +360,10 @@ export function BlockItem({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>): void => {
+    // While an IME is composing, Enter confirms the candidate word instead of
+    // splitting the block. Without this guard, every Chinese input would break
+    // the block apart at the first Enter, and the candidate would be lost.
+    if (e.nativeEvent.isComposing) return
     if (linkPicker && handleLinkKey(e)) return
     if (slashOpen && onSlashKey(e)) return
 
@@ -365,7 +428,7 @@ export function BlockItem({
       onSlashChange(block.id, null)
     }
 
-    // 双链:光标前出现还没闭合的 [[ 就弹出页面选择器
+    // Wiki link: an unclosed "[[" before the caret opens the page picker.
     const trigger = findLinkTrigger(currentText, getCaretOffset(el))
     if (trigger) {
       if (slashOpen) onSlashChange(block.id, null)
@@ -402,6 +465,7 @@ export function BlockItem({
     }
   }
 
+  // Plain-text paste goes through execCommand so the browser keeps its native undo stack.
   const handlePaste = (e: React.ClipboardEvent): void => {
     const imageItem = Array.from(e.clipboardData.items).find(
       (item) => item.kind === 'file' && item.type.startsWith('image/')
@@ -424,8 +488,12 @@ export function BlockItem({
     })
   }
 
-  /** 失焦后把双链补上样式 */
+  /** Re-apply the wiki-link decoration after the block loses focus. */
   const handleBlur = (): void => {
+    // The slash menu belongs to the block that opened it. Without this the menu
+    // would stay open over the old block after the focus moved somewhere else,
+    // and Escape would no longer reach it.
+    if (slashOpen) onSlashChange(block.id, null)
     const el = elRef.current
     if (!el || !el.isContentEditable) return
     decorateWikiLinks(el, resolveLink)
@@ -551,6 +619,8 @@ export function BlockItem({
         return <ImageBlock block={block} registerRef={registerRef} getNeighbors={getNeighbors} />
       case 'table':
         return <TableBlock block={block} registerRef={registerRef} getNeighbors={getNeighbors} />
+      case 'database':
+        return <DatabaseBlock block={block} registerRef={registerRef} />
       case 'divider':
         return (
           <div
@@ -586,7 +656,7 @@ export function BlockItem({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setWrapperRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn('group relative rounded', isDragging && 'z-20 opacity-50')}
     >

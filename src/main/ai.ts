@@ -1,4 +1,4 @@
-import { app, ipcMain, type BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { existsSync, readdirSync, rmdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
@@ -22,10 +22,11 @@ import type {
 import { tableToText } from '@neonity/notion-clone-shared'
 
 /**
- * AI 助手服务:在主进程内运行一个 Pi agent 会话。
- * - 复用用户本机 ~/.pi/agent 的模型与认证配置
- * - 禁用所有内置工具(read/bash/edit/write),只暴露笔记读写工具
- * - 流式事件通过 IPC 推送给渲染进程
+ * AI assistant service: runs a Pi agent session inside the main process.
+ * - Reuses the model and auth configuration from the user's local ~/.pi/agent
+ * - Disables every builtin tool (read/bash/edit/write) and exposes only the
+ *   note read/write tools
+ * - Streams the session's events to the renderer over IPC
  */
 
 const SYSTEM_PROMPT_BASE = `你是 Notion Clone 笔记应用内置的 AI 助手,使用简体中文回答。
@@ -42,13 +43,13 @@ const SYSTEM_PROMPT_BASE = `你是 Notion Clone 笔记应用内置的 AI 助手,
 行为准则:
 `
 
-/** 开启「自动附带当前页面上下文」时的行为准则 */
+/** Behaviour rules used while "attach the current page context automatically" is on. */
 const CONTEXT_RULE_ON = `- 用户提问时,系统会自动附带"当前页面上下文"(用户正在看的页面 id、标题和块内容),
   里面的块 id 可以直接用于 notes_update_block / notes_delete_block,不必再调 notes_read_page。
 - 上下文只是快照,若怀疑内容已变化(比如你自己改动过),先用 notes_read_page 重新读取。
 `
 
-/** 关闭自动上下文时的行为准则 */
+/** Behaviour rules used while the automatic context is off. */
 const CONTEXT_RULE_OFF = `- 你看不到用户当前打开的页面。要操作页面内容时,先用 notes_list_pages 找到页面,
   再用 notes_read_page 拿到块 id,不要凭空猜测块 id。
 `
@@ -59,34 +60,41 @@ const SYSTEM_PROMPT_TAIL = `- 回答简洁,直接给结果,不要废话。
 - 删除操作是不可逆的,执行前向用户确认,除非用户已明确表达删除意图。
 - 你只能通过工具操作笔记,不要假装能访问文件系统或网络。`
 
-/** 系统提示词 = 基础说明 + 上下文准则 + 用户自定义附加指令 */
+/** The system prompt = base instructions + context rules + the user's extra instructions. */
 function buildSystemPrompt(settings: AppSettings): string {
   const contextRule = settings.ai.autoContext ? CONTEXT_RULE_ON : CONTEXT_RULE_OFF
   const extra = settings.ai.extraPrompt.trim()
   return SYSTEM_PROMPT_BASE + contextRule + SYSTEM_PROMPT_TAIL + (extra ? `\n\n附加要求(来自用户设置):\n${extra}` : '')
 }
 
-let win: BrowserWindow | null = null
 let session: AgentSession | null = null
 let initPromise: Promise<AgentSession> | null = null
 let lastContextKey: string | null = null
-/** 当前会话实际使用的系统提示词,用于判断设置变更后是否需要重建会话 */
+/** The system prompt the live session actually uses, to spot settings changes that need a rebuild. */
 let activeSystemPrompt = ''
 let sdkPromise: Promise<typeof import('@earendil-works/pi-coding-agent')> | null = null
 let runtime: ModelRuntime | null = null
 
+/**
+ * The SDK is loaded through a cached dynamic import: it is a pure ESM package,
+ * which the CommonJS main bundle cannot require statically.
+ */
 function loadSdk(): Promise<typeof import('@earendil-works/pi-coding-agent')> {
   if (!sdkPromise) sdkPromise = import('@earendil-works/pi-coding-agent')
   return sdkPromise
 }
 
 /**
- * pi 给 auth.json 加的是"目录锁"(锁就是一个同名 .lock 空目录)。
- * 进程被强杀(崩溃 / kill -9 / app.exit)时锁不会被释放,残留的空目录会让之后每一次
- * 认证读取与模型刷新都失败 —— 界面上就表现为设置里"没有匹配的模型"。
+ * pi locks auth.json with a "directory lock" — a sibling empty directory named
+ * auth.json.lock.
+ * When the process is killed (crash / kill -9 / app.exit) the lock is not
+ * released, and the leftover empty directory makes every later auth read and
+ * model refresh fail — which surfaces in the UI as "no matching model".
  *
- * 这里只清理"空目录 + 长时间未更新"的锁:持有锁的进程会周期性刷新锁的 mtime,
- * 因此超过 60 秒没动过的空锁一定没有活着的持有者,删除是安全的。
+ * Only an empty lock that has not been touched for a while is removed: the
+ * process holding the lock refreshes its mtime periodically, so an empty lock
+ * that has been idle for more than 60 seconds cannot have a live owner and is
+ * safe to delete.
  */
 function cleanStaleAuthLock(agentDir: string): void {
   const lockDir = join(agentDir, 'auth.json.lock')
@@ -98,11 +106,11 @@ function cleanStaleAuthLock(agentDir: string): void {
     rmdirSync(lockDir)
     console.log('[ai] 已清理残留的 auth.json.lock 孤儿锁(上次异常退出留下的)')
   } catch {
-    // 清理失败不影响主流程
+    // A failed cleanup must not block the main flow.
   }
 }
 
-/** 模型运行时(含目录与认证快照)在进程内复用,避免每次重建会话都重新刷新 */
+/** The model runtime (with its catalog and auth snapshot) is reused in-process so rebuilding a session does not refresh it again. */
 async function getRuntime(): Promise<ModelRuntime> {
   if (runtime) return runtime
   const sdk = await loadSdk()
@@ -112,9 +120,11 @@ async function getRuntime(): Promise<ModelRuntime> {
 }
 
 /**
- * 取一个"健康"的运行时:若可用模型快照是空的,说明创建时的刷新失败了
- * (磁盘写满、孤儿锁、网络异常等),这里清一次残留锁再补一次 refresh。
- * 否则快照会被永久缓存成空,导致模型解析不出、调用时抛 "No API key for provider"。
+ * Get a healthy runtime: an empty model snapshot means the refresh that ran at
+ * creation time failed (disk full, orphaned lock, network trouble). Clear a
+ * leftover lock once more and retry the refresh.
+ * Otherwise the empty snapshot is cached forever, which leaves the model
+ * unresolvable and makes every call fail with "No API key for provider".
  */
 async function ensureRuntime(): Promise<ModelRuntime> {
   const rt = await getRuntime()
@@ -124,13 +134,13 @@ async function ensureRuntime(): Promise<ModelRuntime> {
     try {
       await rt.refresh()
     } catch {
-      // 忽略:失败原因由调用方统一转成可读提示
+      // Ignore: the caller turns any failure into a readable message.
     }
   }
   return rt
 }
 
-/** 把设置里的 "provider/id" 解析成运行时里的模型对象(要求该 provider 已配置凭据) */
+/** Resolve the "provider/id" key from settings into a runtime model (the provider must have credentials configured). */
 async function resolveModel(key: string | null): Promise<any | undefined> {
   if (!key) return undefined
   const sep = key.indexOf('/')
@@ -140,12 +150,13 @@ async function resolveModel(key: string | null): Promise<any | undefined> {
   const id = key.slice(sep + 1)
   const model = rt.getModel(provider, id)
   if (!model) return undefined
-  // provider 没有凭据时不要选它,否则调用阶段会直接抛 "No API key"
+  // Never pick a provider without credentials, otherwise the call itself would
+  // fail with "No API key".
   if (!rt.hasConfiguredAuth(provider)) return undefined
   return model
 }
 
-/** 把 SDK 抛出的英文错误翻译成用户能看懂、可操作的中文提示 */
+/** Turn the SDK's raw English errors into actionable Chinese messages for the user. */
 function humanizeAiError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
   const noKey = /No API key for provider[:\s]*([\w.-]+)/i.exec(msg)
@@ -158,6 +169,7 @@ function humanizeAiError(err: unknown): string {
   return msg
 }
 
+/** Chinese labels for the tools, shown in the AI panel's tool activity list. */
 const TOOL_LABELS: Record<string, string> = {
   notes_list_pages: '列出页面',
   notes_read_page: '读取页面',
@@ -168,6 +180,7 @@ const TOOL_LABELS: Record<string, string> = {
   notes_delete_block: '删除块'
 }
 
+/** The tools that modify the notes; only these make the renderer refetch them. */
 const MUTATING_TOOLS = new Set([
   'notes_create_page',
   'notes_append_blocks',
@@ -175,15 +188,32 @@ const MUTATING_TOOLS = new Set([
   'notes_delete_block'
 ])
 
+/**
+ * The window the AI events are delivered to.
+ *
+ * The window is looked up on every send instead of being cached: on macOS the
+ * app stays alive after the last window is closed, and the 'activate' handler
+ * then opens a new one. A cached reference would still point at the destroyed
+ * window, and every event would be silently dropped.
+ */
+function targetWindow(): BrowserWindow | null {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) return w
+  }
+  return null
+}
+
 function emit(event: AiEvent): void {
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('ai:event', event)
+  const w = targetWindow()
+  if (w) {
+    w.webContents.send('ai:event', event)
   }
 }
 
 function emitNotesChanged(): void {
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('ai:notes-changed')
+  const w = targetWindow()
+  if (w) {
+    w.webContents.send('ai:notes-changed')
   }
 }
 
@@ -217,6 +247,8 @@ function handleEvent(event: AgentSessionEvent): void {
         name: event.toolName,
         isError: event.isError
       })
+      // Only the mutating tools change the notes, so the renderer refetches
+      // them when something actually changed.
       if (MUTATING_TOOLS.has(event.toolName)) {
         emitNotesChanged()
       }
@@ -232,7 +264,7 @@ function handleEvent(event: AgentSessionEvent): void {
 
 type TypeBox = typeof import('@earendil-works/pi-ai').Type
 
-/** 把模型传来的二维数组规范化成矩形表格(第一行作表头),同时写入纯文本摘要 */
+/** Normalize the model's two-dimensional array into a rectangular table (the first row is the header) and write the plain-text summary alongside it. */
 function tableContent(raw: unknown): BlockContent {
   const list = Array.isArray(raw) ? raw.filter((r): r is unknown[] => Array.isArray(r)) : []
   const rows = list.map((r) => r.map((v) => (v == null ? '' : String(v))))
@@ -243,7 +275,8 @@ function tableContent(raw: unknown): BlockContent {
   return { table, text: tableToText(table) }
 }
 
-// 用 any 泛型让各工具 execute 的 params 保持 any,避免逐个手写 Static<T> 类型
+// The `any` type parameters keep each tool's execute params as `any`, so the
+// Static<T> types do not have to be spelled out one by one.
 function buildNotesTools(Type: TypeBox): Array<ToolDefinition<any, any>> {
   const blockTypeSchema = Type.Union([
     Type.Literal('paragraph'),
@@ -429,7 +462,8 @@ async function ensureSession(): Promise<AgentSession> {
   if (session) return session
   if (!initPromise) {
     initPromise = (async () => {
-      // SDK 是纯 ESM,主进程构建产物是 CJS,用动态 import 加载
+      // The SDK is pure ESM while the main process bundle is CJS, so it is
+      // loaded with a dynamic import.
       const sdk = await loadSdk()
       const { Type } = await import('@earendil-works/pi-ai')
 
@@ -438,8 +472,8 @@ async function ensureSession(): Promise<AgentSession> {
       const modelRuntime = await ensureRuntime()
       const model = await resolveModel(settings.ai.model)
 
-      // 一个可用模型都没有时,pi 会在调用阶段抛 "No API key for provider: x",
-      // 这里提前拦下并给出可操作的原因。
+      // With no usable model pi would fail at call time with "No API key for
+      // provider: x"; intercept it here and give an actionable reason.
       if (modelRuntime.getAvailableSnapshot().length === 0) {
         const detail = modelRuntime.getError()
         throw new Error(
@@ -457,7 +491,7 @@ async function ensureSession(): Promise<AgentSession> {
         noThemes: true,
         noContextFiles: true,
         systemPrompt,
-        // 不混入用户 pi CLI 的 APPEND_SYSTEM.md 等附加提示词
+        // Do not mix in the user's pi CLI extras such as APPEND_SYSTEM.md.
         appendSystemPromptOverride: () => []
       })
       await resourceLoader.reload()
@@ -466,9 +500,9 @@ async function ensureSession(): Promise<AgentSession> {
         modelRuntime,
         resourceLoader,
         sessionManager: sdk.SessionManager.inMemory(),
-        // 设置里指定了模型就用它,否则交给 pi 的默认选择
+        // Use the model from settings when set, otherwise let pi pick its default.
         ...(model ? { model } : {}),
-        // 禁用 read/bash/edit/write 等内置工具,只保留笔记工具
+        // Disable the read/bash/edit/write builtin tools and keep only the note tools.
         noTools: 'builtin',
         customTools: buildNotesTools(Type)
       })
@@ -478,7 +512,7 @@ async function ensureSession(): Promise<AgentSession> {
       lastContextKey = null
       return s
     })()
-    // 初始化失败允许下次重试
+    // Allow a retry on the next attempt when initialization failed.
     initPromise.catch(() => {
       initPromise = null
     })
@@ -486,7 +520,7 @@ async function ensureSession(): Promise<AgentSession> {
   return initPromise
 }
 
-/** 丢弃当前会话;下次提问时按最新设置重建 */
+/** Discard the current session; the next question rebuilds it from the latest settings. */
 function resetSession(): void {
   try {
     session?.dispose()
@@ -499,7 +533,7 @@ function resetSession(): void {
   activeSystemPrompt = ''
 }
 
-/** 设置变更后让会话跟上:改模型就地切换(保留对话),改提示词则重建会话 */
+/** Keep the session in sync with settings: a model change switches in place (keeping the conversation), a prompt change rebuilds the session. */
 async function applySettings(next: AppSettings): Promise<void> {
   if (!session) return
 
@@ -512,6 +546,17 @@ async function applySettings(next: AppSettings): Promise<void> {
 
   const current = session.model ? `${session.model.provider}/${session.model.id}` : null
   if (next.ai.model === current) return
+
+  // "Follow pi's default" cannot be applied in place: the SDK's setModel()
+  // only accepts an explicit model. The session is rebuilt instead, so the
+  // next question runs on whatever pi picks by default. Without this branch
+  // the setting said "default" while the session kept running the old model.
+  if (next.ai.model === null) {
+    resetSession()
+    emit({ type: 'notice', text: '已切换为 pi 默认模型,对话上下文已重置' })
+    return
+  }
+
   const model = await resolveModel(next.ai.model)
   if (!model) return
   try {
@@ -526,8 +571,9 @@ async function applySettings(next: AppSettings): Promise<void> {
 }
 
 /**
- * 把当前页面渲染成一段上下文文本,作为一条 custom 消息塞进会话。
- * custom 消息会转成 user 消息送进模型,且不会触发新一轮生成。
+ * Render the current page into a context text that is injected as a custom
+ * message. A custom message is delivered to the model as a user message and
+ * does not trigger another generation round.
  */
 function renderContext(ctx: AiPageContext): string {
   const lines: string[] = [
@@ -554,7 +600,7 @@ function renderContext(ctx: AiPageContext): string {
   return lines.join('\n')
 }
 
-/** 上下文指纹:页面没变且内容没变时不再重复注入 */
+/** Context fingerprint: the context is not injected again while neither the page nor its content changed. */
 function contextKey(ctx: AiPageContext): string {
   const body = ctx.blocks.map((b) => `${b.id}:${b.type}:${b.text}:${b.checked ? 1 : 0}`).join('|')
   return `${ctx.pageId}::${ctx.title}::${body}`
@@ -565,10 +611,10 @@ function currentStatus(s: AgentSession): AiStatus {
   return { ready: true, model: m ? `${m.provider} / ${m.id}` : undefined }
 }
 
-export function registerAi(mainWindow: BrowserWindow): void {
-  win = mainWindow
-
-  // 设置面板改了模型 / 提示词 / 上下文开关时,让会话跟上
+/** Register the AI IPC handlers and keep the running session in sync with the settings. */
+export function registerAi(): void {
+  // Keep the session in sync when the settings panel changes the model, the
+  // prompt, or the context switch.
   onSettingsChanged((next) => {
     void applySettings(next)
   })
@@ -578,7 +624,8 @@ export function registerAi(mainWindow: BrowserWindow): void {
     async (_e, text: string, context: AiPageContext | null): Promise<AiSendResult> => {
       try {
         const s = await ensureSession()
-        // 页面上下文只在发生变化时注入一次,避免每轮重复堆叠
+        // The page context is injected only when it changes, so it does not
+        // pile up with every turn.
         if (context && getSettings().ai.autoContext) {
           const key = contextKey(context)
           if (key !== lastContextKey) {
@@ -610,7 +657,8 @@ export function registerAi(mainWindow: BrowserWindow): void {
     }
   })
 
-  // 首次调用时顺便完成会话初始化(模型/认证加载),让面板尽快显示模型信息
+  // The first call also completes the session initialization (model and auth
+  // loading), so the panel can show the model info as early as possible.
   ipcMain.handle('ai:status', async (): Promise<AiStatus> => {
     try {
       const s = await ensureSession()
@@ -620,12 +668,12 @@ export function registerAi(mainWindow: BrowserWindow): void {
     }
   })
 
-  // 列出本机可用模型(设置面板的模型选择器)
+  // List the models available on this machine, for the settings panel's picker.
   ipcMain.handle('ai:models', async (): Promise<AiModelInfo[]> => {
     const rt = await ensureRuntime()
     let models = rt.getAvailableSnapshot()
     if (models.length === 0) {
-      // 创建时若刷新失败,这里再尝试一次
+      // If the refresh failed at creation time, try once more here.
       models = await rt.getAvailable().catch(() => rt.getAvailableSnapshot())
     }
     const list: AiModelInfo[] = models.map((m) => ({
@@ -642,7 +690,8 @@ export function registerAi(mainWindow: BrowserWindow): void {
     return list
   })
 
-  // 清空对话(保留设置),下次提问重新建会话
+  // Clear the conversation (the settings are kept); the next question builds a
+  // new session.
   ipcMain.handle('ai:reset', async () => {
     resetSession()
   })

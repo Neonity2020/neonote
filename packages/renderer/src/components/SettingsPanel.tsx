@@ -40,6 +40,10 @@ interface SettingsPanelProps {
   onClose: () => void
 }
 
+/**
+ * The settings dialog: a section list on the left and the content of the active section on the
+ * right.
+ */
 export function SettingsPanel({ onClose }: SettingsPanelProps): JSX.Element {
   const [section, setSection] = useState<SectionId>('appearance')
 
@@ -59,7 +63,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): JSX.Element {
       }}
     >
       <div className="flex h-[560px] w-full max-w-3xl overflow-hidden rounded-xl border bg-background shadow-2xl">
-        {/* 左侧分区导航 */}
+        {/* Section navigation */}
         <nav className="flex w-44 shrink-0 flex-col gap-0.5 border-r bg-muted/30 p-2">
           <p className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             设置
@@ -81,7 +85,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): JSX.Element {
           ))}
         </nav>
 
-        {/* 右侧内容 */}
+        {/* Section content */}
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b px-5 py-3">
             <h2 className="text-sm font-semibold">
@@ -103,8 +107,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): JSX.Element {
   )
 }
 
-/* ---------- 通用小组件 ---------- */
+/* ---------- Shared primitives ---------- */
 
+// A settings row: a label with an optional hint on the left and the control on the right.
 function Row({
   label,
   hint,
@@ -132,6 +137,7 @@ function Row({
   )
 }
 
+// A segmented control for a small set of mutually exclusive options.
 function Segmented<T extends string | number>({
   value,
   options,
@@ -161,6 +167,7 @@ function Segmented<T extends string | number>({
   )
 }
 
+// A switch that toggles a boolean setting.
 function Toggle({
   checked,
   onChange
@@ -189,7 +196,7 @@ function Toggle({
   )
 }
 
-/* ---------- 外观 ---------- */
+/* ---------- Appearance ---------- */
 
 function AppearanceSection(): JSX.Element {
   const settings = useSettings((s) => s.settings)
@@ -234,7 +241,7 @@ function AppearanceSection(): JSX.Element {
   )
 }
 
-/* ---------- AI 助手 ---------- */
+/* ---------- AI assistant ---------- */
 
 function AiSection(): JSX.Element {
   const settings = useSettings((s) => s.settings)
@@ -247,11 +254,14 @@ function AiSection(): JSX.Element {
   const [promptDraft, setPromptDraft] = useState(settings.ai.extraPrompt)
   const [notice, setNotice] = useState<string | null>(null)
 
-  // 设置从主进程回来时同步草稿(比如点了「恢复默认」)
+  // Sync the draft when the settings come back from the main process (e.g. after "restore
+  // defaults").
   useEffect(() => {
     setPromptDraft(settings.ai.extraPrompt)
   }, [settings.ai.extraPrompt])
 
+  // Only models that already have credentials configured locally are listed; switching the model
+  // takes effect immediately and keeps the current conversation.
   async function loadModels(): Promise<void> {
     setLoadingModels(true)
     setModelError(null)
@@ -284,6 +294,8 @@ function AiSection(): JSX.Element {
   const shown = filtered.slice(0, 120)
   const current = settings.ai.model
 
+  // The extra instructions are appended to the built-in system prompt. Changing them resets the
+  // current conversation, because the prompt is baked into the session when it is created.
   async function commitPrompt(): Promise<void> {
     if (promptDraft === settings.ai.extraPrompt) return
     await update({ ai: { extraPrompt: promptDraft } })
@@ -432,7 +444,7 @@ function AiSection(): JSX.Element {
   )
 }
 
-/* ---------- 数据与存储 ---------- */
+/* ---------- Data and storage ---------- */
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -446,6 +458,7 @@ function DataSection(): JSX.Element {
   const [confirmReset, setConfirmReset] = useState(false)
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // The data section reports the database path, the asset directory and the page/block counts.
   useEffect(() => {
     void window.settings.getAppInfo().then(setInfo)
   }, [])
@@ -482,7 +495,11 @@ function DataSection(): JSX.Element {
         </Button>
       </Row>
 
-      <Row label="恢复默认设置" hint="只会重置主题与 AI 偏好,不会删除任何页面或块">
+      <Row
+        label="恢复默认设置"
+        hint="会重置主题、字号与内容宽度、AI 偏好三项设置,不会删除任何页面或块"
+      >
+        {/* Two-step confirm, so that a destructive action is never a single click. */}
         <Button
           variant={confirmReset ? 'destructive' : 'outline'}
           size="sm"
@@ -505,7 +522,7 @@ function DataSection(): JSX.Element {
   )
 }
 
-/* ---------- 关于 ---------- */
+/* ---------- About ---------- */
 
 function AboutSection(): JSX.Element {
   const [info, setInfo] = useState<AppInfo | null>(null)

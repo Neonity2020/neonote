@@ -42,9 +42,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { WELCOME_PAGE_TITLE } from '@neonity/notion-clone-shared'
 import type { PageMeta, SearchResult } from '@neonity/notion-clone-shared'
 
-/** 每级缩进宽度,行内 padding 与拖拽投影必须用同一个值 */
+/** Indent width per level; the row padding and the drag preview must use the same value. */
 const INDENT = 14
-/** 行文本左侧的基础留白(不含层级缩进) */
+/** Base left padding of a row, excluding the level indentation. */
 const ROW_PAD = 4
 
 interface SidebarProps {
@@ -64,17 +64,23 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
   const [searching, setSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  /** 折叠的页面 id(默认全部展开) */
+  /** Ids of the collapsed pages (everything is expanded by default). */
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [activeId, setActiveId] = useState<string | null>(null)
   const [preview, setPreview] = useState<DropPreview | null>(null)
 
-  /** 拖拽过程的落点结果,用 ref 保存以免 state 异步导致松手时读到旧值 */
+  /**
+   * The resolved drop target during a drag, kept in a ref because state updates are async and the
+   * drop has to read the final target on pointer-up.
+   */
   const pendingMove = useRef<{ parentId: string | null; index: number } | null>(null)
-  /** 拖拽起点(指针位置 + 被拖行的层级),用于把横向位移换算成层级变化 */
+  /**
+   * The drag origin (pointer position and the dragged row's level), used to turn the horizontal
+   * displacement into a level change.
+   */
   const dragStart = useRef<{ x: number; depth: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
-  /** 拖拽结束后紧跟的一次 click 不应该触发页面切换 */
+  /** The click that follows a drag must not switch pages. */
   const suppressClick = useRef(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -126,10 +132,10 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
   }
 
   /**
-   * 用指针位置(而不是 dnd-kit 的 over)算落点:
-   * - 纵向:与每一行的中线比较,得到"插到第几个间隙"
-   * - 横向:换算成缩进层级,"往右拖 = 变成上一行的子页面"
-   * 这样判定完全可预测,也不会被"拖影本身仍在列表里"干扰。
+   * Compute the drop target from the pointer geometry instead of dnd-kit's "over":
+   * - vertically: compare against each row's midline to get the insertion gap
+   * - horizontally: convert the pointer displacement into a tree level
+   * The result is fully predictable and is not confused by the drag preview still being in the list.
    */
   function updatePreview(draggingId: string, clientX: number, clientY: number): void {
     const wrap = wrapRef.current
@@ -154,8 +160,10 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
 
     const anchor = gap > 0 ? measured[gap - 1] : null
     const maxDepth = anchor ? anchor.depth + 1 : 0
-    // 层级看"相对按下位置的横向位移",而不是指针绝对横坐标:
-    // 前者按住不动就是原层级,右移约 14px 才深一级;后者随手抓在行中段就已经深了两级。
+    // The level comes from the horizontal displacement relative to the grab point, not from the
+    // absolute pointer X: holding still keeps the original level and only a ~14px move to the right
+    // nests one level deeper, while the absolute X would already be two levels deep for a mid-row
+    // grab.
     const start = dragStart.current
     const shift = start ? Math.round((clientX - start.x) / INDENT) : 0
     const depth = Math.max(0, Math.min((start?.depth ?? 0) + shift, maxDepth))
@@ -169,16 +177,17 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
       parentId = null
       index = 0
     } else if (depth === anchor.depth + 1) {
-      // 比锚点更深一级 → 成为锚点的最后一个子页面
+      // One level deeper than the anchor: become the last child of the anchor.
       parentId = anchor.id
       index = siblingCount(pages, anchor.id, activeId)
       insideId = anchor.id
-      // 作为子页面插入后,视觉上落在锚点整棵子树之后,指示线也要画在那儿
+      // As a child it is placed visually after the anchor's whole subtree, so the indicator moves
+      // there as well.
       let i = gap
       while (i < measured.length && measured[i].depth > anchor.depth) i += 1
       displayGap = i
     } else {
-      // 与某个祖先同级 → 插到该行之后
+      // Same level as some ancestor: insert right after that row.
       let ref: MeasuredRow | null = null
       for (let i = gap - 1; i >= 0; i -= 1) {
         if (measured[i].depth === depth) {
@@ -215,7 +224,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
   } | null {
     const activator = event.activatorEvent as unknown as PointerEvent | undefined
     if (!activator || typeof activator.clientX !== 'number') return null
-    // DragStartEvent 没有 delta(拖拽尚未开始),用 0 代替
+    // DragStartEvent has no delta (the drag has not started yet), so use 0.
     const delta = 'delta' in event ? event.delta : { x: 0, y: 0 }
     return { x: activator.clientX + delta.x, y: activator.clientY + delta.y }
   }
@@ -247,7 +256,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
     dragStart.current = null
     if (!target) return
 
-    // 拖拽产生的 pointerup 会紧跟一次 click,拦掉它免得误切页面
+    // The pointerup that ends a drag is followed by a click; swallow it so the page does not switch.
     suppressClick.current = true
     setTimeout(() => {
       suppressClick.current = false
@@ -273,7 +282,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
 
     await movePage(draggingId, target.parentId, target.index)
 
-    // 拖进折叠的页面里时自动展开,否则用户看不到刚移进去的页面
+    // Expand a collapsed target parent, otherwise the moved page would vanish from view.
     if (target.parentId) {
       setCollapsed((prev) => {
         if (!prev.has(target.parentId as string)) return prev
@@ -386,7 +395,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
                   />
                 ))}
 
-                {/* 插入指示线:纵向位置 = 落点间隙,横向缩进 = 拖出来的层级 */}
+                {/* Insertion indicator: vertical position = the drop gap, horizontal indent = the dragged level. */}
                 {preview && (
                   <div
                     data-drop-indicator
@@ -436,21 +445,21 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
   )
 }
 
-/** 让整个列表成为一个可放置区域,拖到空白处也能落在列表末尾 */
+/** Makes the whole list a droppable area, so a drop into empty space lands at the end of the list. */
 function PageList({ children }: { children: ReactNode }): JSX.Element {
   const { setNodeRef } = useDroppable({ id: 'pages-root' })
   return <div ref={setNodeRef}>{children}</div>
 }
 
-/* ---------- 拖拽落点 ---------- */
+/* ---------- Drop target ---------- */
 
 interface DropPreview {
-  /** 指示线相对列表容器顶部的偏移 */
+  /** Indicator offset from the top of the list container. */
   y: number
-  /** 指示线相对容器左侧的缩进 */
+  /** Indicator indent from the left edge of the container. */
   left: number
   depth: number
-  /** 拖成"子页面"时要高亮的父行 */
+  /** Parent row highlighted when the drop turns the page into a child. */
   insideId: string | null
 }
 
@@ -460,7 +469,7 @@ interface MeasuredRow {
   rect: DOMRect
 }
 
-/** 量出每一行的位置;拖拽中的那一行本身跳过,否则会干扰间隙计算 */
+/** Measure every row; the row being dragged is skipped, as it would corrupt the gap calculation. */
 function measureRows(wrap: HTMLElement, draggingId: string | null): MeasuredRow[] {
   const els = Array.from(wrap.querySelectorAll<HTMLElement>('[data-page-row]'))
   const out: MeasuredRow[] = []
@@ -496,7 +505,15 @@ function siblingCount(pages: PageMeta[], parentId: string, excludeId: string | n
   return siblingsOf(pages, parentId, excludeId).length
 }
 
-/** 落点和当前状态一致时不必打 IPC */
+/**
+ * Skip the IPC round-trip when the target is the position the page already has.
+ *
+ * The drop index counts the siblings *without* the dragged page, exactly like
+ * the database does. The page's own place in that coordinate system is the
+ * number of siblings in front of it, so the two can be compared directly.
+ * Excluding the page from the lookup instead would always yield 0, and every
+ * drop on the first position would be dismissed as a no-op.
+ */
 function positionUnchanged(
   pages: PageMeta[],
   id: string,
@@ -504,10 +521,11 @@ function positionUnchanged(
 ): boolean {
   const self = pages.find((p) => p.id === id)
   if (!self || self.parentId !== target.parentId) return false
-  return siblingIndexOf(pages, target.parentId, id, id) === target.index
+  const current = siblingsOf(pages, target.parentId, null).findIndex((p) => p.id === id)
+  return current === target.index
 }
 
-/** target 是否等于 candidate 或位于其子树中(用于阻止把页面拖进自己的后代) */
+/** Whether target is candidate itself or lives in its subtree, to stop a page being dropped into its own descendants. */
 function isSelfOrDescendant(pages: PageMeta[], targetId: string, candidateId: string): boolean {
   const byId = new Map(pages.map((p) => [p.id, p]))
   let cur: string | null | undefined = targetId
@@ -521,7 +539,7 @@ function isSelfOrDescendant(pages: PageMeta[], targetId: string, candidateId: st
   return false
 }
 
-/* ---------- 树 ---------- */
+/* ---------- Tree ---------- */
 
 interface TreeNode {
   page: PageMeta
@@ -534,6 +552,10 @@ interface FlatRow {
   hasChildren: boolean
 }
 
+/**
+ * Build the page tree. The database stores a flat list of pages, so the hierarchy is derived from
+ * parentId and the siblings are ordered by position.
+ */
 function buildTree(pages: PageMeta[]): TreeNode[] {
   const map = new Map<string, TreeNode>()
   const roots: TreeNode[] = []
@@ -558,7 +580,7 @@ function buildTree(pages: PageMeta[]): TreeNode[] {
   return roots
 }
 
-/** 把树按当前折叠状态压成一行一行,方便拖拽排序时拿到线性顺序 */
+/** Flatten the tree into rows according to the collapsed state, giving the linear order drag-and-drop needs. */
 function flattenTree(tree: TreeNode[], collapsed: Set<string>): FlatRow[] {
   const rows: FlatRow[] = []
   const walk = (nodes: TreeNode[], depth: number): void => {
@@ -573,7 +595,7 @@ function flattenTree(tree: TreeNode[], collapsed: Set<string>): FlatRow[] {
   return rows
 }
 
-/* ---------- 单行 ---------- */
+/* ---------- Row ---------- */
 
 interface PageRowProps {
   row: FlatRow

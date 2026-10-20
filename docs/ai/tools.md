@@ -1,8 +1,9 @@
 # 笔记工具集
 
-AI 能调用的全部工具。共 7 个，分三类：**读**（3 个）、**写**（3 个）、**搜索**（1 个）。
+AI 能调用的全部工具。共 7 个，分两类：**读**（3 个：`notes_list_pages`、`notes_read_page`、`notes_search`）、
+**写**（4 个：`notes_create_page`、`notes_append_blocks`、`notes_update_block`、`notes_delete_block`）。
 
-全部定义在 `src/main/ai.ts:247` 的 `buildNotesTools()`。
+全部定义在 `src/main/ai.ts:280` 的 `buildNotesTools()`。
 
 ---
 
@@ -106,7 +107,7 @@ AI 能调用的全部工具。共 7 个，分三类：**读**（3 个）、**写
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `type` | enum | 11 种块类型之一（**不含 `image`**，见下方说明） |
+| `type` | enum | 应用支持的 13 种块类型里的 11 种（**不含 `image` 与 `database`**，见下方说明） |
 | `text` | string | 块文本，`divider` 可省略 |
 | `checked` | boolean | 仅 `todo` 块：是否勾选 |
 | `table` | string[][] | 仅 `table` 块：二维数组，第一行作表头 |
@@ -180,7 +181,7 @@ AI 可以做的：改文字、改类型、增删块、增删页面。
 
 ## 系统提示词
 
-工具集的可用性和行为约束来自系统提示词（`src/main/ai.ts:31`）：
+工具集的可用性和行为约束来自系统提示词（`src/main/ai.ts:32`）：
 
 ```
 你是 Notion Clone 笔记应用内置的 AI 助手,使用简体中文回答。

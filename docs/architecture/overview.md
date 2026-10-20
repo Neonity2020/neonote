@@ -29,6 +29,7 @@
 │          'settings')         │   │   ├── Editor             │
 │                              │   │   │    ├── BlockItem       │
 │ 无 Node API 暴露             │   │   │    ├── TableBlock      │
+│                              │   │   │    ├── DatabaseBlock   │
 │ contextIsolation: true       │   │   │    └── ImageBlock      │
 │ nodeIntegration: false       │   │   ├── AssistantPanel     │
 └──────────────────────────────┘   │   └── SettingsPanel      │
@@ -40,7 +41,7 @@
 
 ### 安全配置
 
-`src/main/index.ts:34`：
+`src/main/index.ts:43`：
 
 | 项 | 值 | 含义 |
 | --- | --- | --- |
@@ -185,7 +186,7 @@ app.whenReady()
 - `node:sqlite` 显式 `external` —— 它是 Node 内置模块，由 Electron 的 Node 运行时提供。
 
 > Pi SDK 是**纯 ESM**，而主进程产物是 CJS，所以 `ai.ts` 用**动态 `import()`** 加载 SDK
-> （`loadSdk()`，`src/main/ai.ts:78`）。
+> （`loadSdk()`，`src/main/ai.ts:82`）。
 
 打包成安装包由 electron-builder 负责，详见 [构建与发布](../development/build-and-release.md)。
 

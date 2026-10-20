@@ -29,6 +29,9 @@ import {
   WELCOME_PAGE_TITLE
 } from '@neonity/notion-clone-shared'
 
+// Sibling order is stored as fractional positions: inserting between two
+// neighbours takes the midpoint of their positions, so a single insertion
+// never has to rewrite the rest of the level.
 const POSITION_STEP = 1024
 
 let db: DatabaseSync
@@ -40,6 +43,12 @@ function now(): number {
 export function initDb(): void {
   const dbPath = join(app.getPath('userData'), 'notion-clone.db')
   db = new DatabaseSync(dbPath)
+  // WAL lets readers continue while a write is in flight, and foreign_keys is a
+  // per-connection pragma that has to be enabled for the ON DELETE CASCADE
+  // rules to remove child pages and their blocks.
+  // Block content is kept in a single JSON TEXT column rather than typed
+  // columns: the payload shape differs per block type, so introducing a new
+  // block type does not require a schema migration.
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -108,6 +117,10 @@ function pageFromRow(row: PageRow): PageMeta {
   }
 }
 
+/**
+ * Rows written before content became JSON hold plain text; the failed parse is
+ * used as the signal to treat the raw column value as the block's text.
+ */
 function blockFromRow(row: BlockRow): Block {
   let content: BlockContent = {}
   try {
@@ -132,6 +145,7 @@ function touchPage(pageId: string, ts: number): void {
 
 // ---------- Pages ----------
 
+/** All pages, top-level ones first, each group ordered by its position. */
 export function listPages(): PageMeta[] {
   const rows = db
     .prepare('SELECT * FROM pages ORDER BY parent_id IS NOT NULL, position')
@@ -139,6 +153,7 @@ export function listPages(): PageMeta[] {
   return rows.map(pageFromRow)
 }
 
+/** Create a page and seed it with a single empty paragraph block. */
 export function createPage(input: CreatePageInput): PageMeta {
   const id = randomUUID()
   const ts = now()
@@ -163,6 +178,10 @@ export function createPage(input: CreatePageInput): PageMeta {
   }
 }
 
+/**
+ * Update a page's title and/or icon. A title change also rewrites the wiki
+ * links that pointed at the old title.
+ */
 export function updatePage(input: UpdatePageInput): PageUpdateResult {
   const ts = now()
   const updatedBlockIds: string[] = []
@@ -171,7 +190,8 @@ export function updatePage(input: UpdatePageInput): PageUpdateResult {
       | { title: string }
       | undefined
     db.prepare('UPDATE pages SET title = ?, updated_at = ? WHERE id = ?').run(input.title, ts, input.id)
-    // 标题变了,指向旧标题的双链要跟着改,否则链接会指向一个不存在的页面
+    // A renamed page drags its inbound wiki links along, or those links would
+    // point at a title that no longer exists.
     if (row && row.title && row.title !== input.title) {
       updatedBlockIds.push(...propagateTitleRename(input.id, row.title, input.title))
     }
@@ -183,17 +203,33 @@ export function updatePage(input: UpdatePageInput): PageUpdateResult {
 }
 
 /**
- * 页面改名后,同步改写全库指向旧标题的双链,返回被改写的块 id。
+ * Rewrite every wiki link that points at `oldTitle` after the page was renamed,
+ * and return the ids of the blocks that changed.
  *
- * 只有旧标题在库里唯一时才改写:存在同名页面时,`[[旧标题]]` 究竟指哪一个页面
- * 是不确定的,贸然改写反而会把链接指错。不确定就保持原样 ——
- * 链接要么落到同名页上,要么显示为"未创建",都由用户自己收拾。
+ * The rewrite only runs when the old title was unique in the database: with a
+ * duplicate page of the same title there is no way to tell which page
+ * `[[oldTitle]]` meant, and guessing would silently repoint the link. Leaving
+ * it untouched is the safer failure — the link then resolves to the duplicate
+ * or renders as "not created", and the user can sort it out by hand.
+ *
+ * The same guard applies to the new title. If another page already carries it,
+ * the rewritten links would resolve to that page instead of the renamed one,
+ * which is exactly the silent repointing the check above exists to prevent.
+ *
+ * Titles are compared case-insensitively, because that is how a link is
+ * resolved: `[[notes]]` points at a page titled "Notes", so it has to be
+ * rewritten as well.
  */
 function propagateTitleRename(pageId: string, oldTitle: string, newTitle: string): string[] {
-  const dup = db.prepare('SELECT COUNT(*) AS c FROM pages WHERE title = ? AND id != ?').get(oldTitle, pageId) as {
-    c: number
-  }
-  if (dup.c > 0) return []
+  const dupOld = db
+    .prepare('SELECT COUNT(*) AS c FROM pages WHERE lower(title) = lower(?) AND id != ?')
+    .get(oldTitle, pageId) as { c: number }
+  if (dupOld.c > 0) return []
+
+  const dupNew = db
+    .prepare('SELECT COUNT(*) AS c FROM pages WHERE lower(title) = lower(?) AND id != ?')
+    .get(newTitle, pageId) as { c: number }
+  if (dupNew.c > 0) return []
 
   const rows = db.prepare("SELECT id, page_id, content FROM blocks WHERE instr(content, '[[') > 0").all() as unknown as Array<{
     id: string
@@ -212,7 +248,7 @@ function propagateTitleRename(pageId: string, oldTitle: string, newTitle: string
       content = { text: row.content }
     }
     const text = content.text ?? ''
-    if (!text.includes(oldTitle)) continue
+    if (!text.toLowerCase().includes(oldTitle.toLowerCase())) continue
     const next = replaceWikiLinkTitle(text, oldTitle, newTitle)
     if (next === text) continue
     db.prepare('UPDATE blocks SET content = ?, updated_at = ? WHERE id = ?').run(
@@ -227,14 +263,20 @@ function propagateTitleRename(pageId: string, oldTitle: string, newTitle: string
   return updated
 }
 
+/** Delete a page together with its subtree. */
 export function deletePage(id: string): void {
   // FK cascade removes child pages and their blocks
   db.prepare('DELETE FROM pages WHERE id = ?').run(id)
 }
 
-/** candidate 是否等于 target 或位于 target 的子树中(用于阻止把页面拖进自己的后代) */
+/**
+ * Whether `candidateId` is `targetId` itself or sits inside its subtree — the
+ * guard that stops a page from being moved under its own descendant and
+ * creating a cycle in the page tree.
+ */
 function isSelfOrDescendant(candidateId: string, targetId: string): boolean {
   let cur: string | null = candidateId
+  // A broken parent chain could loop forever, so stop once a node repeats.
   const seen = new Set<string>()
   while (cur) {
     if (cur === targetId) return true
@@ -249,8 +291,9 @@ function isSelfOrDescendant(candidateId: string, targetId: string): boolean {
 }
 
 /**
- * 移动页面:改父级 + 在目标父级的兄弟序列里插入到 index 位置。
- * position 用前后邻居的中点,避免为了插入一个节点重写整层。
+ * Move a page to a new parent and to a given index among the new parent's
+ * children. The new position is the midpoint of the two neighbouring siblings,
+ * so inserting one node does not rewrite the whole level.
  */
 export function movePage(input: MovePageInput): PageMeta[] {
   const { id, parentId } = input
@@ -291,6 +334,7 @@ export function movePage(input: MovePageInput): PageMeta[] {
 
 // ---------- Blocks ----------
 
+/** The blocks of a page in display order. */
 export function listBlocks(pageId: string): Block[] {
   const rows = db
     .prepare('SELECT * FROM blocks WHERE page_id = ? ORDER BY position')
@@ -303,6 +347,8 @@ function insertBlock(input: CreateBlockInput): Block {
   const ts = now()
   let position: number
   if (input.afterId) {
+    // Between two blocks the new position is the midpoint of the neighbours;
+    // after the last block it is simply one step further down.
     const after = db.prepare('SELECT position FROM blocks WHERE id = ?').get(input.afterId) as
       | { position: number }
       | undefined
@@ -338,15 +384,18 @@ function insertBlock(input: CreateBlockInput): Block {
   }
 }
 
+/** Insert a block, either after an existing one or at the end of the page. */
 export function createBlock(input: CreateBlockInput): Block {
   return insertBlock(input)
 }
 
+/** A single block by id, or undefined when it no longer exists. */
 export function getBlock(id: string): Block | undefined {
   const row = db.prepare('SELECT * FROM blocks WHERE id = ?').get(id) as BlockRow | undefined
   return row ? blockFromRow(row) : undefined
 }
 
+/** Update the type and/or content of a block; omitted fields stay as they are. */
 export function updateBlock(input: UpdateBlockInput): void {
   const ts = now()
   const row = db.prepare('SELECT page_id FROM blocks WHERE id = ?').get(input.id) as
@@ -366,6 +415,7 @@ export function updateBlock(input: UpdateBlockInput): void {
   touchPage(row.page_id, ts)
 }
 
+/** Delete a block and bump the updated_at of the page that owned it. */
 export function deleteBlock(id: string): void {
   const row = db.prepare('SELECT page_id FROM blocks WHERE id = ?').get(id) as
     | { page_id: string }
@@ -374,6 +424,11 @@ export function deleteBlock(id: string): void {
   if (row) touchPage(row.page_id, now())
 }
 
+/**
+ * Rewrite the positions of a page's blocks to match the given order. The whole
+ * renumbering runs in one transaction, so no reader can observe a half-applied
+ * order, and the positions are reset to whole POSITION_STEP multiples.
+ */
 export function reorderBlocks(pageId: string, orderedIds: string[]): void {
   const ts = now()
   const stmt = db.prepare('UPDATE blocks SET position = ?, updated_at = ? WHERE id = ? AND page_id = ?')
@@ -410,7 +465,10 @@ export function listImageAssetIds(): Set<string> {
 
 // ---------- Settings (raw key/value) ----------
 
-/** 读取全部设置分区,值是反序列化后的对象;解析失败的条目会被忽略 */
+/**
+ * Read every settings section. The value is the deserialized object; entries
+ * whose JSON is broken are skipped so one bad row cannot break the whole load.
+ */
 export function loadSettingsRaw(): Record<string, unknown> {
   const rows = db.prepare('SELECT key, value FROM settings').all() as unknown as Array<{
     key: string
@@ -421,12 +479,13 @@ export function loadSettingsRaw(): Record<string, unknown> {
     try {
       out[row.key] = JSON.parse(row.value)
     } catch {
-      // 忽略损坏的条目,回落到默认值
+      // Skip the corrupted entry; the caller falls back to the default.
     }
   }
   return out
 }
 
+/** Store one settings section as a JSON blob under its own key. */
 export function saveSettingsSection(key: string, value: unknown): void {
   db.prepare(
     `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
@@ -434,11 +493,12 @@ export function saveSettingsSection(key: string, value: unknown): void {
   ).run(key, JSON.stringify(value), now())
 }
 
+/** Remove every stored settings section. */
 export function clearSettings(): void {
   db.prepare('DELETE FROM settings').run()
 }
 
-/** 页面 / 块数量统计(设置面板用) */
+/** Row counts for pages and blocks, shown in the settings panel. */
 export function countRows(): { pages: number; blocks: number } {
   const pages = (db.prepare('SELECT COUNT(*) AS c FROM pages').get() as { c: number }).c
   const blocks = (db.prepare('SELECT COUNT(*) AS c FROM blocks').get() as { c: number }).c
@@ -447,12 +507,33 @@ export function countRows(): { pages: number; blocks: number } {
 
 // ---------- Search ----------
 
+/**
+ * Substring search over page titles and block text.
+ *
+ * Matching uses LIKE on the JSON-extracted `$.text` field, so it is a plain
+ * substring search rather than an inverted index — fast enough for a local
+ * database, and it keeps every block's content in a single column. Results are
+ * capped at 20 pages and 30 blocks, most recently updated first.
+ */
+/**
+ * Escape the LIKE wildcards in a user-supplied search term, so a query like
+ * "100%" or "a_b" is matched literally instead of turning into a pattern.
+ */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+}
+
 export function search(query: string): SearchResult[] {
-  const q = `%${query}%`
+  // The query is user input, so the LIKE wildcards it may contain have to be
+  // escaped. Otherwise "100%" would match every title containing "100", and
+  // "a_b" would match "axb".
+  const q = `%${escapeLike(query)}%`
   const results: SearchResult[] = []
 
   const pageRows = db
-    .prepare('SELECT id, title, icon FROM pages WHERE title LIKE ? ORDER BY updated_at DESC LIMIT 20')
+    .prepare(
+      "SELECT id, title, icon FROM pages WHERE title LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT 20"
+    )
     .all(q) as unknown as Array<{ id: string; title: string; icon: string | null }>
   for (const row of pageRows) {
     results.push({
@@ -469,7 +550,7 @@ export function search(query: string): SearchResult[] {
       `SELECT b.id AS block_id, b.page_id, p.title AS page_title, p.icon AS page_icon,
               json_extract(b.content, '$.text') AS text
        FROM blocks b JOIN pages p ON p.id = b.page_id
-       WHERE json_extract(b.content, '$.text') LIKE ?
+       WHERE json_extract(b.content, '$.text') LIKE ? ESCAPE '\\'
        ORDER BY b.updated_at DESC LIMIT 30`
     )
     .all(q) as unknown as Array<{
@@ -481,6 +562,8 @@ export function search(query: string): SearchResult[] {
   }>
   for (const row of blockRows) {
     const text = row.text ?? ''
+    // A window of 60 characters around the hit, marked with an ellipsis
+    // whenever characters were cut off at either end.
     const idx = text.toLowerCase().indexOf(query.toLowerCase())
     const start = Math.max(0, idx - 20)
     const snippet = (start > 0 ? '…' : '') + text.slice(start, start + 60) + (start + 60 < text.length ? '…' : '')
@@ -496,15 +579,15 @@ export function search(query: string): SearchResult[] {
   return results
 }
 
-// ---------- Wiki Links (双链) ----------
+// ---------- Wiki Links ----------
 
-/** 把一段文本压成单行摘要,用于反向链接列表 */
+/** Flatten a text into a single-line summary for the backlink list. */
 function makeSnippet(text: string, max = 90): string {
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
-/** 解析块 content 里的纯文本,坏数据按纯文本兜底(与 blockFromRow 一致) */
+/** Extract the plain text of a block's content; malformed data falls back to the raw value, as in blockFromRow. */
 function textOf(content: string): string {
   try {
     const parsed = JSON.parse(content) as BlockContent
@@ -515,12 +598,14 @@ function textOf(content: string): string {
 }
 
 /**
- * 取页面的双向链接:出链 + 反向链接。
+ * Collect both directions of a page's wiki links: the links it makes and the
+ * links that point back at it.
  *
- * 双链没有单独的表 —— `[[标题]]` 就是块正文里的一段纯文本。
- * 这里在查询时解析正文并按标题解析目标页面,好处是链接的"真身"始终是正文,
- * 不会出现索引和正文对不上的情况;代价是每次查询要扫一遍含 `[[` 的块,
- * 对本地 SQLite 来说完全够用。
+ * Wiki links have no table of their own — `[[Title]]` is plain text inside the
+ * block body, parsed on demand. That keeps the body the single source of truth
+ * (an index can never drift out of sync with the text it was built from) at the
+ * cost of scanning every block that contains `[[` on each query, which is
+ * plenty fast for a local SQLite file.
  */
 export function getPageLinks(pageId: string): PageLinks {
   const pages = listPages()
@@ -528,7 +613,7 @@ export function getPageLinks(pageId: string): PageLinks {
   if (!target) return { outgoing: [], backlinks: [] }
   const titleIndex = buildPageTitleIndex(pages)
 
-  // ---------- 出链:本页块里的双链 ----------
+  // ---------- Outgoing links: wiki links inside this page's blocks ----------
   const outgoingMap = new Map<string, OutgoingLink>()
   for (const block of listBlocks(pageId)) {
     const text = block.content.text ?? ''
@@ -548,8 +633,10 @@ export function getPageLinks(pageId: string): PageLinks {
     }
   }
 
-  // ---------- 反向链接:全库指向本页的块 ----------
+  // ---------- Backlinks: blocks anywhere in the database that point here ----------
   const backlinks: BacklinkRef[] = []
+  // Cheap pre-filter: only blocks whose raw content contains '[[' can hold a
+  // wiki link at all.
   const rows = db
     .prepare(
       `SELECT b.id AS block_id, b.page_id, b.content, p.title AS page_title, p.icon AS page_icon
@@ -566,13 +653,14 @@ export function getPageLinks(pageId: string): PageLinks {
   }>
 
   for (const row of rows) {
-    // 本页自己的链接在"出链"里已经列过,不重复算成反向链接
+    // Links this page makes are already listed as outgoing, so they are not
+    // repeated as backlinks.
     if (row.page_id === pageId) continue
     const text = textOf(row.content)
     if (!text) continue
     const links = parseWikiLinks(text)
     if (links.length === 0) continue
-    // 一段文字里只要有一条链接指向本页,整块就算一条反向链接
+    // A block counts as one backlink as soon as any of its links targets this page.
     if (!links.some((l) => lookupPageByTitle(titleIndex, l.title)?.id === target.id)) continue
     backlinks.push({
       blockId: row.block_id,
@@ -619,7 +707,7 @@ const WELCOME_SEED_BLOCKS: Array<{ type: BlockType; text: string; checked?: bool
   { type: 'paragraph', text: '在左侧边栏可以新建页面、组织层级、搜索全部内容。开始写作吧!' }
 ]
 
-/** 种子/重置时把表格的纯文本摘要一并写进 content.text */
+/** When seeding or resetting, also store the table's plain-text summary in content.text. */
 function seedContent(seed: { text: string; checked?: boolean; table?: TableData }): BlockContent {
   return {
     text: seed.table ? tableToText(seed.table) : seed.text,
@@ -666,7 +754,8 @@ export function resetWelcomePage(): PageMeta {
   }
 
   const ts = now()
-  // Clear existing blocks for this page, then re-seed inside a single transaction.
+  // Wipe and re-seed inside a single transaction so the page is never left
+  // empty or half-seeded for another reader to observe.
   db.exec('BEGIN')
   try {
     db.prepare('DELETE FROM blocks WHERE page_id = ?').run(row.id)

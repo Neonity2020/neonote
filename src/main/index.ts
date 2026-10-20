@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'node:url'
 import { basename, extname } from 'node:path'
@@ -15,25 +15,36 @@ import type {
   UpdatePageInput
 } from '@neonity/notion-clone-shared'
 
-/** 窗口底色跟随主题设置,避免深色下启动闪白 */
+/** The window background follows the theme setting, so a dark start-up does not flash white. */
 function resolvedTheme(): 'light' | 'dark' {
   const theme = getSettings().theme
   if (theme === 'system') return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   return theme
 }
 
+/**
+ * The app runs as three Electron processes: the main process (Node, owns the
+ * database and the AI session), the preload script (the bridge), and the
+ * renderer (the UI). The renderer is untrusted UI code, so it runs with
+ * contextIsolation on and nodeIntegration off and reaches the main process
+ * only through the surfaces the preload script exposes.
+ */
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    // The window is created hidden and shown on 'ready-to-show', so the user
+    // never sees a white flash before the first paint.
     show: false,
     backgroundColor: resolvedTheme() === 'dark' ? '#0a0a0b' : '#ffffff',
     title: 'Notion Clone',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
+      // The renderer gets no Node or Electron API of its own; everything goes
+      // through the preload bridge.
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -44,7 +55,12 @@ function createWindow(): void {
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    // Only web and mail links are handed to the operating system. Any other
+    // scheme (file://, custom handlers) could be used to reach resources the
+    // app should not open on the user's behalf.
+    if (/^(https?|mailto):/i.test(url)) {
+      void shell.openExternal(url)
+    }
     return { action: 'deny' }
   })
 
@@ -55,6 +71,7 @@ function createWindow(): void {
   }
 }
 
+/** Register the IPC handlers for pages, blocks, search, links and images. */
 function registerIpc(): void {
   ipcMain.handle('pages:list', () => db.listPages())
   ipcMain.handle('pages:create', (_e, input: CreatePageInput) => db.createPage(input))
@@ -79,10 +96,13 @@ function registerIpc(): void {
   ipcMain.handle('images:pick', () => pickImage())
 }
 
+/** Serve the files in the asset directory to the renderer over the custom protocol. */
 function registerAssetProtocol(): void {
   protocol.handle(ASSET_SCHEME, async (request) => {
     try {
       const url = new URL(request.url)
+      // basename() strips any directory part from the requested path, so a
+      // crafted URL cannot escape the asset directory.
       const id = basename(decodeURIComponent(url.pathname))
       const filePath = join(getAssetsDir(), id)
       const res = await net.fetch(pathToFileURL(filePath).toString())
@@ -97,6 +117,8 @@ function registerAssetProtocol(): void {
 
 app.setName('notion-clone')
 
+// A custom scheme has to be declared as privileged before the app is ready, so
+// the renderer can treat nc-asset:// like a normal, secure origin.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: ASSET_SCHEME,
@@ -104,22 +126,31 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-app.whenReady().then(() => {
-  db.initDb()
-  gcAssets(db.listImageAssetIds())
-  registerAssetProtocol()
-  registerIpc()
-  registerSettings()
-  createWindow()
-  const win = BrowserWindow.getAllWindows()[0]
-  if (win) registerAi(win)
+app.whenReady()
+  .then(() => {
+    db.initDb()
+    // Drop the asset files that no image block references any more.
+    gcAssets(db.listImageAssetIds())
+    registerAssetProtocol()
+    registerIpc()
+    registerSettings()
+    registerAi()
+    createWindow()
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
-    }
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow()
+      }
+    })
   })
-})
+  .catch((err) => {
+    // A corrupt database or an unwritable data directory used to leave the
+    // process alive with no window and no message, so the user only saw a
+    // dock icon that did nothing. Report it and quit.
+    const message = err instanceof Error ? err.message : String(err)
+    dialog.showErrorBox('Notion Clone 启动失败', `无法初始化本地数据库：\n${message}`)
+    app.exit(1)
+  })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

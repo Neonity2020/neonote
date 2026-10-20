@@ -1,7 +1,7 @@
 # 块类型参考
 
-共 12 种块类型。类型定义在 `packages/shared/src/index.ts:1`，渲染逻辑在
-`packages/renderer/src/components/BlockItem.tsx:311`。
+共 13 种块类型。类型定义在 `packages/shared/src/index.ts:9`，渲染逻辑在
+`packages/renderer/src/components/BlockItem.tsx:515`。
 
 ---
 
@@ -21,6 +21,7 @@
 | `divider` | 分割线 | 水平线 | ❌ | — |
 | `image` | 图片 | 本地图片 | ❌ | — |
 | `table` | 表格 | 行列数据 | ✅（摘要） | — |
+| `database` | 数据库 | 属性 + 记录表格 | ✅（摘要） | — |
 
 ---
 
@@ -28,7 +29,7 @@
 
 ### 正文 `paragraph`
 
-默认类型。新建页面时自动附带一个空正文块（`src/main/db.ts:141`）。
+默认类型。新建页面时自动附带一个空正文块（`src/main/db.ts:157`）。
 
 只有正文块会响应 Markdown 快捷输入（见下方对照表）。
 
@@ -78,6 +79,18 @@
 
 详见 [图片与表格](media-and-tables.md)。
 
+### 数据库 `database`
+
+数据库块用表格或画廊视图组织数据：表格视图一行属性、一行记录，单元格直接编辑；
+画廊视图把记录排成卡片，第一个文本属性当卡片标题。
+
+- 属性类型有文本、数字、日期、复选框、单选。
+- 记录可以新增、删除；删除属性会连带清掉所有记录里该属性的值。
+- 支持按属性排序，数字属性按数值排序。
+- 数据存在 `content.database`，同时把可读摘要写进 `content.text`，因此能参与搜索、也能被 AI 读到。
+
+详见 [数据库块](database-blocks.md)。
+
 ---
 
 ## Markdown 快捷输入
@@ -103,21 +116,23 @@
 - 待办转换会重置 `checked` 为 `false`。
 - 其他转换只改类型并清空文本，块内原有的其他 `content` 字段保留。
 
-> 前缀的判定基于**整块文本精确匹配**（`matchMarkdown`，`packages/renderer/src/components/BlockItem.tsx:21`），
+> 前缀的判定基于**整块文本精确匹配**（`matchMarkdown`，`packages/renderer/src/components/BlockItem.tsx:33`），
 > 所以 `1. ` 必须有空格，`#` 后面没有空格不触发。
 
 ---
 
 ## 类型转换规则
 
-通过斜杠菜单切换类型时（`setBlockType`，`packages/renderer/src/store.ts:173`）：
+通过斜杠菜单切换类型时（`setBlockType`，`packages/renderer/src/store.ts:315`）：
 
 | 转换 | 副作用 |
 | --- | --- |
 | → `divider` | 清空 `content.text` |
 | → 非 `todo` | 删除 `content.checked` |
 | → `table` | 若原无 `table` 数据，生成 3×3 默认表格并同步写入 `text` 摘要 |
+| → `database` | 若原无 `database` 数据，生成默认数据库（名称 + 状态两个属性）并同步写入 `text` 摘要 |
 | 从 `table` 转走 | **保留** `content.table` 数据，方便再转回来 |
+| 从 `database` 转走 | **保留** `content.database` 数据，方便再转回来 |
 | 其他 | 保留原有 `content` 字段 |
 
 ---
@@ -126,11 +141,12 @@
 
 在任意文本块输入 `/` 唤起。
 
-- 菜单项按**名称、描述、关键词**三者匹配过滤（`packages/renderer/src/lib/blockTypes.tsx:45`）。
+- 菜单项按**名称、描述、关键词**三者匹配过滤（`packages/renderer/src/lib/blockTypes.tsx:55`）。
 - 关键词包含中英文与拼音首字母，例如 `表格` 块可被 `biaoge` / `bg` / `table` 命中。
 - `↑` / `↓` 移动选中项，`Enter` 应用，`Esc` 关闭。
 - 用鼠标点击时用 `onMouseDown` + `preventDefault()`，避免先触发 blur 丢失光标。
 - 选中**表格**时，块会先初始化为默认表格，光标自动落到第一个单元格。
+- 选中**数据库**时同理，初始带「名称 / 状态」两个属性，光标落到第一个单元格。
 
 ---
 
@@ -151,4 +167,5 @@
 - [块编辑器](editor.md) —— 输入、拆分、合并、拖拽
 - [双链](links.md) —— `[[页面]]` 语法与反向链接
 - [图片与表格](media-and-tables.md) —— 图片与表格块的详细操作
+- [数据库块](database-blocks.md) —— 属性、记录、搜索与排序
 - [块类型参考](../reference/types.md#块类型) —— 类型定义原文

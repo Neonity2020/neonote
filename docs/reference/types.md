@@ -10,10 +10,10 @@
 export type BlockType =
   | 'paragraph' | 'heading1' | 'heading2' | 'heading3'
   | 'bulletedList' | 'numberedList' | 'todo'
-  | 'quote' | 'code' | 'divider' | 'image' | 'table'
+  | 'quote' | 'code' | 'divider' | 'image' | 'table' | 'database'
 ```
 
-12 种。详细行为见 [块类型参考](../user-guide/blocks.md)。
+13 种。详细行为见 [块类型参考](../user-guide/blocks.md)。
 
 ---
 
@@ -45,11 +45,29 @@ export interface BlockContent {
   checked?: boolean
   src?: string          // image: 'nc-asset://asset/<id>'
   table?: TableData
+  database?: DatabaseData
 }
 
 export interface TableData {
   rows: string[][]
   header: boolean       // 第一行是否渲染为表头
+}
+
+export type DatabasePropertyType = 'text' | 'number' | 'date' | 'checkbox' | 'select'
+
+export interface DatabaseProperty {
+  id: string
+  name: string
+  type: DatabasePropertyType
+  options?: string[]     // 仅 select 属性
+}
+
+export interface DatabaseData {
+  name: string
+  view?: 'table' | 'gallery'   // 缺省按表格视图渲染
+  properties: DatabaseProperty[]
+  records: { id: string; values: Record<string, string | boolean> }[]
+  sort?: { propertyId: string; direction: 'asc' | 'desc' }
 }
 ```
 
@@ -69,6 +87,10 @@ export function createTableData(
 ): TableData
 
 export function tableToText(table: TableData): string
+
+export function createDatabaseData(): DatabaseData
+
+export function databaseToText(database: DatabaseData): string
 ```
 
 `tableToText` 把表格拍平成纯文本：行内用 ` | ` 连接，行间用 `\n` 分隔。

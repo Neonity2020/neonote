@@ -8,7 +8,7 @@
 
 ## 表结构
 
-数据库初始化在 `src/main/db.ts:28`。
+数据库初始化在 `src/main/db.ts:43`。
 
 ```sql
 PRAGMA journal_mode = WAL;
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS settings (
 | `pages` | `created_at` / `updated_at` | INTEGER | 毫秒时间戳 |
 | `blocks` | `id` | TEXT PK | UUID v4 |
 | | `page_id` | TEXT FK | 所属页面，`ON DELETE CASCADE` |
-| | `type` | TEXT | 12 种块类型之一 |
+| | `type` | TEXT | 13 种块类型之一 |
 | | `content` | TEXT | **JSON 字符串**，见下文 |
 | `settings` | `key` | TEXT PK | 分区名：`theme` / `editor` / `ai` |
 | | `value` | TEXT | JSON 字符串 |
@@ -79,13 +79,16 @@ CREATE TABLE IF NOT EXISTS settings (
 
 // table
 { "text": "列1 | 列2\n值1 | 值2", "table": { "header": true, "rows": [["列1","列2"],["值1","值2"]] } }
+
+// database
+{ "text": "名称 | 状态\n待办 | 未开始", "database": { "name": "未命名数据库", "view": "table", "properties": [...], "records": [...] } }
 ```
 
 **容错**：如果 `content` 解析失败，当作纯文本处理（`{ text: row.content }`），
 不会让整个页面读不出来。
 
-**表格的双写**：`table` 块同时写结构化数据和纯文本摘要。摘要是为了复用既有的纯文本通道——
-搜索、AI 上下文、复制粘贴都能直接用，不必为表格单独开一条路。
+**表格与数据库的双写**：`table` 和 `database` 块同时写结构化数据和纯文本摘要。摘要是为了复用
+既有的纯文本通道——搜索、AI 上下文、复制粘贴都能直接用，不必为它们单独开一条路。
 
 设计取舍见 [ADR-0003](../adr/0003-json-block-content.md)。
 
@@ -115,7 +118,7 @@ else               position = POSITION_STEP
 
 ### 整体重排
 
-拖拽结束后整层重写，位置是 `(index + 1) * 1024`（`reorderBlocks`，`src/main/db.ts:311`），
+拖拽结束后整层重写，位置是 `(index + 1) * 1024`（`reorderBlocks`，`src/main/db.ts:432`），
 在**单个事务**内完成，失败回滚。
 
 ### 为什么用浮点数
@@ -141,7 +144,7 @@ SELECT * FROM pages ORDER BY parent_id IS NOT NULL, position;
 ```
 
 这个排序保证**顶层页面在前**，同层按 `position` 升序。前端再用 `parentId` 把它拼成树
-（`buildTree`，`packages/renderer/src/components/Sidebar.tsx:537`）。
+（`buildTree`，`packages/renderer/src/components/Sidebar.tsx:559`）。
 
 ### 级联删除
 
@@ -246,8 +249,13 @@ ORDER BY b.updated_at DESC
 并返回被改写的块 id（`PageUpdateResult.updatedBlockIds`），
 前端据此把受影响的块拉回本地。
 
+标题的匹配**忽略大小写**，与解析规则保持一致：`[[notes]]` 指向标题为「Notes」的页面，
+改名时同样会被改写。
+
 **只有旧标题在库里唯一时才改写。** 存在同名页面时，`[[旧标题]]` 究竟指哪一个是不确定的，
 贸然改写反而会把链接指错——这种情况下保持原样，由用户自己消歧。
+
+**新标题已被别的页面占用时也不改写**，理由同上：改写后的链接会解析到那个已有页面上。
 
 ### 为什么这样设计
 
@@ -261,7 +269,7 @@ ORDER BY b.updated_at DESC
 ## 种子数据
 
 数据库为空时（`pages` 表 count 为 0），自动创建一个欢迎页并写入 **16 个示例块**，
-覆盖全部 12 种块类型。
+覆盖 13 种块类型中的 10 种（不含 `heading3`、`image` 与 `database`）。
 
 **恢复示例内容**（`resetWelcomePage`）会：
 

@@ -22,6 +22,7 @@ interface StoreState {
   currentPageId: string | null
   blocks: Block[]          // 当前页面的块
   blocksLoading: boolean
+  linksVersion: number     // 链接解析版本号，页面增删改名后 +1
 }
 ```
 
@@ -30,7 +31,7 @@ interface StoreState {
 
 ### 防抖落库
 
-`packages/renderer/src/store.ts:5`：
+`packages/renderer/src/store.ts:7`：
 
 ```ts
 const SAVE_DEBOUNCE = 400
@@ -46,36 +47,56 @@ const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 ### `flushSaves()`
 
-把**所有**待执行的写入立刻执行掉。有三处会调用：
+把**所有**待执行的块写入立刻执行掉。有两处会调用：
 
 | 时机 | 原因 |
 | --- | --- |
 | `selectPage()` | 切页前把当前页的编辑写回，避免丢数据 |
 | `resetWelcomePage()` | 重置前先写回 |
-| `refreshFromAi()` | AI 改完数据后重载前，先把本地编辑写回 |
+| 页面改名落库前 | 让改名传播作用在用户最新文本上，而不是被旧快照覆盖 |
 
-第���条尤其重要：AI 通过工具直接改数据库，如果前端还有未落库的编辑，
-重载时会被 AI 的新内容覆盖——用户的输入就丢了。`flushSaves()` 保证了
-**本地编辑先落库，AI 的改动后读入**，顺序正确。
+### `flushPageSaves()`
 
-### 主要操作
+把**所有**待执行的标题写入立刻执行掉，**并等待写回完成**。
+
+`movePage()` 与 `refreshFromAi()` 都会用主进程返回的完整页面列表**整体替换** `pages`，
+而那份列表来自数据库。如果标题改动还在防抖窗口里，替换就会把旧标题写回本地，
+紧接着待执行的定时器又把旧标题落库——**改名被静默撤销**。所以替换之前先冲掉待写入的标题。
+
+### `refreshFromAi()`：按块合并，而不是整体覆盖
+
+AI 通过工具直接改数据库，可能改的正是用户正在输入的那一块。所以刷新**不**整体覆盖：
+
+- 先读数据库，再**按块合并**。本地有未落库改动的块，保留本地版本；
+- 如果某一块在本地编辑**开始之后**被数据库改写过（说明是 AI 改的），则以**数据库版本为准**，
+  并丢掉这条过期的本地编辑——否则待执行的写入会把 AI 的改动又盖回去；
+- 读取期间用户切了页，就放弃这次刷新，避免把上一页的块装到当前页上。
 
 | 操作 | 实现要点 |
 | --- | --- |
 | `init()` | 拉全部页面，自动选中第一个 |
 | `selectPage(id)` | `flushSaves()` → 置 `blocksLoading` → 拉块 |
 | `createPage(parentId)` | 建页 → 加入列表 → 选中 |
-| `renamePage(id, title)` | 乐观更新 + 防抖落库 |
+| `renamePage(id, title)` | 乐观更新 + 防抖落库；**落库后**才 `linksVersion + 1` |
 | `setPageIcon(id, icon)` | 乐观更新 + **立即**落库（图标没有防抖） |
 | `deletePage(id)` | 先算后代集合 → 调 IPC → 从列表移除 → 必要时跳转 |
-| `movePage(id, parentId, index)` | 先落库再整体替换状态 |
+| `movePage(id, parentId, index)` | 先冲掉待写入的标题 → 落库 → 整体替换状态 |
 | `updateBlockLocal(id, content)` | 乐观更新 + 防抖落库 |
 | `setBlockType(id, type)` | 附带类型转换的副作用清理 |
 | `setBlockChecked(id, checked)` | 乐观更新 + 防抖落库 |
 | `insertBlockAfter(afterId, type, content)` | 建块 → 插入到本地数组对应位置 |
 | `removeBlock(id)` | 删块；**删到最后一个时补一个空正文块** |
 | `setBlocksOrder(orderedIds)` | 本地重排 + 落库 |
-| `refreshFromAi()` | `flushSaves()` → 重读页面和块 |
+| `refreshFromAi()` | 冲掉待写入的标题 → 重读页面 → 按块合并块 |
+
+### `linksVersion`：改标题时不要每敲一个字就查一次
+
+`linksVersion` 是给链接面板用的信号：它一变，面板就重新查一遍全库的双链关系。
+
+所以**不能在 `renamePage()` 里递增**——那会让每敲一个字符都触发一次全库查询。
+真正需要刷新的是**改名落库之后**（主进程在那一刻才改写了正文里的 `[[旧标题]]`），
+所以 `linksVersion` 在标题写入成功后才 `+1`。
+新建页和删除页是离散动作，仍然在操作发生时立即递增。
 
 ### 两个"不落库直接改"的细节
 

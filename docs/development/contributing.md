@@ -69,6 +69,10 @@ b949fc4 build: 接入 electron-builder 打包 Windows NSIS 安装器
 
 漏掉第 4 处的话，AI 就无法创建这种类型的块。
 
+如果这种块有专门的视图（像 `table`、`database`），还要在
+`packages/renderer/src/components/` 下加自己的组件，并在 `BlockItem.tsx` 的
+`renderContent()` 里分发过去。
+
 ### 加一个 IPC 能力要改的地方
 
 共 **3 处**，顺序不能少：

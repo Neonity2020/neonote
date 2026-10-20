@@ -81,7 +81,7 @@ export default function App(): JSX.Element {
           onToggleTheme={() => void updateSettings({ theme: dark ? 'light' : 'dark' })}
           onOpenSettings={() => setSettingsOpen(true)}
         />
-        <div className="relative h-full min-w-0 flex-1">
+        <div className="relative isolate h-full min-w-0 flex-1">
           <main className="h-full overflow-y-auto">
             {!ready ? null : currentPageId ? (
               // Remount the editor per page, so per-page state cannot leak between pages.

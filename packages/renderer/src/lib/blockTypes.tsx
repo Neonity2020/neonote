@@ -10,20 +10,28 @@ import {
   Minus,
   Quote,
   Table2,
+  Database,
   Type,
   type LucideIcon
 } from 'lucide-react'
 import type { BlockType } from '@neonity/notion-clone-shared'
 
+/** One entry of the block type catalogue, as shown in the slash menu. */
 export interface BlockTypeMeta {
   type: BlockType
   label: string
   description: string
+  /**
+   * Extra search aliases: the pinyin of the label plus common English
+   * synonyms, so the slash menu can be filtered in several ways.
+   */
   keywords: string
   icon: LucideIcon
 }
 
+/** The block types offered by the slash menu, in display order. */
 export const BLOCK_TYPE_ITEMS: BlockTypeMeta[] = [
+  { type: 'database', label: '数据库', description: '带属性、记录和排序的数据库', keywords: 'database db shujuku sjk', icon: Database },
   { type: 'paragraph', label: '正文', description: '普通段落文本', keywords: 'text plain zw zhengwen p', icon: Type },
   { type: 'heading1', label: '标题 1', description: '最大级别标题', keywords: 'h1 heading bt biaoti', icon: Heading1 },
   { type: 'heading2', label: '标题 2', description: '中等级别标题', keywords: 'h2 heading bt biaoti', icon: Heading2 },
@@ -38,10 +46,12 @@ export const BLOCK_TYPE_ITEMS: BlockTypeMeta[] = [
   { type: 'divider', label: '分割线', description: '水平分隔线', keywords: 'divider hr fgx line', icon: Minus }
 ]
 
+/** Lookup from a block type to its catalogue entry. */
 export const BLOCK_TYPE_MAP = new Map<BlockType, BlockTypeMeta>(
   BLOCK_TYPE_ITEMS.map((item) => [item.type, item])
 )
 
+/** Filter the catalogue by label, description or keyword alias, case-insensitively. */
 export function filterBlockTypes(filter: string): BlockTypeMeta[] {
   const f = filter.trim().toLowerCase()
   if (!f) return BLOCK_TYPE_ITEMS
@@ -53,6 +63,7 @@ export function filterBlockTypes(filter: string): BlockTypeMeta[] {
   )
 }
 
+/** Placeholder text shown in an empty block of the given type. */
 export function placeholderFor(type: BlockType): string {
   switch (type) {
     case 'heading1':

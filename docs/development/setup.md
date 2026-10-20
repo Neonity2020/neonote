@@ -63,9 +63,12 @@ npm install
 │           ├── App.tsx         外壳
 │           ├── store.ts        笔记状态
 │           ├── settingsStore.ts 设置状态
+│           ├── env.d.ts        window.api / window.ai / window.settings 类型
+│           ├── index.css       CSS 变量、编辑器样式、滚动条
 │           ├── lib/            纯工具函数
 │           │   ├── blockTypes.tsx
 │           │   ├── caret.ts
+│           │   ├── wikiLink.ts
 │           │   └── utils.ts
 │           └── components/
 │               ├── Sidebar.tsx       页面树
@@ -73,7 +76,10 @@ npm install
 │               ├── BlockItem.tsx     块渲染与键盘
 │               ├── TableBlock.tsx    表格
 │               ├── ImageBlock.tsx    图片
+│               ├── DatabaseBlock.tsx 数据库
 │               ├── SlashMenu.tsx     斜杠菜单
+│               ├── LinkPicker.tsx    双链页面选择器
+│               ├── LinkPanel.tsx     页面底部双向链接面板
 │               ├── EmojiPicker.tsx   表情选择
 │               ├── AssistantPanel.tsx AI 面板
 │               ├── SettingsPanel.tsx 设置面板
@@ -114,7 +120,7 @@ import { cn } from '@/lib/utils'
 
 | 想做的事 | 改哪里 |
 | --- | --- |
-| 加一个块类型 | shared 包的 `BlockType` + `renderer/lib/blockTypes.tsx` 的元数据 + `BlockItem.tsx` 的渲染分支 + `main/ai.ts` 的工具 schema |
+| 加一个块类型 | shared 包的 `BlockType` + `renderer/lib/blockTypes.tsx` 的元数据 + `BlockItem.tsx` 的渲染分支 + `main/ai.ts` 的工具 schema（有专门视图的块还要加自己的组件） |
 | 加一个数据库字段 | 优先扩展 `content` 的 JSON 形状（见 [数据模型](../architecture/data-model.md#演进与迁移)） |
 | 加一个 IPC 能力 | shared 包 → `main/index.ts` → `preload/index.ts`（三处，顺序不能少） |
 | 加一个设置项 | shared 包的 `AppSettings` + `main/settings.ts` 的 `sanitize()` + `SettingsPanel.tsx` |
@@ -134,15 +140,32 @@ import { cn } from '@/lib/utils'
 
 主进程的日志会输出到启动 `npm run dev` 的终端。
 
+### 启动失败
+
+数据库打不开（文件损坏、目录不可写、磁盘满）时，应用会弹一个**错误对话框**并退出，
+而不是留在一个没有窗口的后台进程里。报错原文就在对话框里。
+
+> 进程内没有 schema 迁移机制，数据库结构不兼容时同样会在这里失败。
+> 详见 [数据模型](../architecture/data-model.md#演进与迁移)。
+
 ### 常用排查手段
 
 **看数据库里到底存了什么**
 
 ```bash
-sqlite3 "$(node -e "console.log(require('electron').app.getPath('userData'))")/notion-clone.db"
+# macOS
+sqlite3 "$HOME/Library/Application Support/notion-clone/notion-clone.db"
+# Windows
+sqlite3 "%APPDATA%\notion-clone\notion-clone.db"
+# Linux
+sqlite3 "$HOME/.config/notion-clone/notion-clone.db"
 ```
 
 或者直接用任意 SQLite 工具打开 `<userData>/notion-clone.db`。
+
+> 不要指望 `node -e "require('electron').app.getPath('userData')"` 来取路径：
+> 在 Electron 之外 `require('electron')` 返回的是**可执行文件路径字符串**，不是 Electron API，
+> `app` 是 `undefined`（同样的原因见 `electron.vite.config.ts` 开头）。
 
 > 数据库跑在 WAL 模式，外部工具读取时如果看到 `-wal` 文件是正常的。
 

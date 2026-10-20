@@ -24,10 +24,11 @@
 | 文档 | 内容 |
 | --- | --- |
 | [块编辑器](user-guide/editor.md) | 输入、拆分、合并、拖拽、保存机制 |
-| [块类型参考](user-guide/blocks.md) | 12 种块类型 + Markdown 快捷输入对照 |
+| [块类型参考](user-guide/blocks.md) | 13 种块类型 + Markdown 快捷输入对照 |
 | [页面与层级](user-guide/pages.md) | 页面树、拖拽改层级、折叠、删除级联 |
 | [搜索](user-guide/search.md) | 匹配范围、结果规则、命中上限 |
 | [图片与表格](user-guide/media-and-tables.md) | 图片插入/粘贴、表格编辑与导航 |
+| [数据库块](user-guide/database-blocks.md) | 数据库块的属性、记录、搜索与排序 |
 | [双链](user-guide/links.md) | `[[页面]]` 语法、反向链接面板、改名传播 |
 | [AI 助手](user-guide/ai-assistant.md) | 模型选择、页面上下文、工具能力 |
 | [设置](user-guide/settings.md) | 外观 / AI 助手 / 数据与存储 / 关于 |
@@ -123,6 +124,7 @@ docs/
 │   ├── pages.md
 │   ├── search.md
 │   ├── media-and-tables.md
+│   ├── database-blocks.md
 │   ├── links.md
 │   ├── ai-assistant.md
 │   ├── settings.md

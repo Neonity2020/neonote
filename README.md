@@ -38,10 +38,11 @@ npm run dev
 
 ### 功能
 
-- **块编辑器** —— 12 种块类型，斜杠命令菜单，Markdown 快捷输入（`# `、`- `、`[] `…）
+- **块编辑器** —— 13 种块类型，斜杠命令菜单，Markdown 快捷输入（`# `、`- `、`[] `…）
 - **双链** —— 正文写 `[[页面标题]]` 即可互链，页面底部列出「谁引用了我」，改名自动同步链接（旧标题唯一时）
 - **页面树** —— 无限层级，拖拽同时支持排序和改变父子关系
 - **表格** —— 纯文本行列数据，键盘导航，可被搜索和 AI 读取
+- **数据库** —— 属性 + 记录，表格或画廊视图，支持搜索与排序，可被搜索和 AI 读取
 - **图片** —— 本地存储，任意文本块 `Ctrl+V` 直接粘贴
 - **全文搜索** —— 同时匹配页面标题与块正文
 - **AI 助手** —— 复用本机 `~/.pi/agent` 的模型配置，能直接读写笔记
@@ -144,7 +145,7 @@ npm run dev
 ```
 
 On first launch the app seeds a welcome page titled **「欢迎使用 Notion Clone」** (👋) that
-demonstrates 10 of the 12 block types.
+demonstrates 10 of the 13 block types.
 
 | Script | What it does |
 | --- | --- |
@@ -161,10 +162,11 @@ built-in `node:sqlite` module provided by the Node 22 runtime bundled with Elect
 
 ### Features
 
-- **Block editor** — 12 block types, a slash command menu, and Markdown shortcuts (`# `, `- `, `[] `, …)
+- **Block editor** — 13 block types, a slash command menu, and Markdown shortcuts (`# `, `- `, `[] `, …)
 - **Wiki links** — write `[[Page title]]` to link pages; each page lists what references it, and renaming a page rewrites the links automatically, as long as the old title is unique
 - **Page tree** — unlimited nesting; dragging reorders siblings and re-parents pages at the same time
 - **Tables** — plain-text cells with full keyboard navigation, readable by search and by the AI
+- **Databases** — properties and records in a table or gallery view, searchable and sortable, readable by search and by the AI
 - **Images** — stored locally; paste straight from the clipboard with `Ctrl+V` in any text block
 - **Full-text search** — matches page titles and block bodies
 - **AI assistant** — reuses the model configuration in your local `~/.pi/agent` and can read and write your notes

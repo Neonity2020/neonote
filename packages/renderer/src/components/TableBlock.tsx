@@ -18,7 +18,7 @@ interface TableBlockProps {
   getNeighbors: () => { prev: Block | null; next: Block | null }
 }
 
-/** 在光标处插入纯文本(Shift+Enter 换行 / 粘贴),由调用方负责同步到 store */
+/** Insert plain text at the caret (a Shift+Enter newline or a paste); the caller syncs it to the store. */
 function insertPlainText(text: string): void {
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return
@@ -43,19 +43,22 @@ export function TableBlock({ block, registerRef, getNeighbors }: TableBlockProps
   const height = rows.length
 
   const wrapperRef = useRef<HTMLDivElement | null>(null)
+  /** Registry of the mounted cell elements, keyed by "row:column". */
   const cells = useRef(new Map<string, HTMLDivElement>())
-  /** 工具栏作用的目标单元格(最近一次聚焦/点击的) */
+  /** The cell the toolbar acts on (the most recently focused or clicked one). */
   const [active, setActive] = useState({ r: 0, c: 0 })
   const [engaged, setEngaged] = useState(false)
 
   const key = (r: number, c: number): string => `${r}:${c}`
 
-  /** 始终基于 store 里的最新数据做增删改,避免连续输入时用到过期的 props */
+  /** Always read the latest data from the store, so rapid successive edits never act on stale props. */
   const readTable = (): TableData => {
     const b = useStore.getState().blocks.find((x) => x.id === block.id)
     return b?.content.table ?? table
   }
 
+  // The block's text field keeps a flattened copy of the table, so search, the AI context and
+  // copy-paste work on it without having to special-case tables.
   const commit = (next: TableData): void => {
     const b = useStore.getState().blocks.find((x) => x.id === block.id)
     updateBlockLocal(block.id, { ...(b?.content ?? block.content), table: next, text: tableToText(next) })
@@ -80,7 +83,7 @@ export function TableBlock({ block, registerRef, getNeighbors }: TableBlockProps
     setCaretOffset(el, pos === 'start' ? 0 : pos === 'end' ? len : Math.min(pos, len))
   }
 
-  // 从斜杠菜单新建的表格:挂载后把焦点交给第一个单元格
+  // A table created from the slash menu: hand the focus to the first cell once mounted.
   useEffect(() => {
     if (consumeCellFocus(block.id)) {
       requestAnimationFrame(() => {
@@ -94,7 +97,8 @@ export function TableBlock({ block, registerRef, getNeighbors }: TableBlockProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 外部数据变化(AI 修改、切页回来)时同步单元格文本,正在编辑的单元格不打断
+  // Sync the cell text when the data changes externally (an AI edit, switching pages back); the
+  // cell being edited is left alone so the caret is not disturbed.
   useEffect(() => {
     for (const [k, el] of cells.current) {
       if (document.activeElement === el) continue
@@ -182,11 +186,18 @@ export function TableBlock({ block, registerRef, getNeighbors }: TableBlockProps
     })
   }
 
+  // Enter moves down and inserts a row at the bottom, Shift+Enter inserts a newline inside the
+  // cell, Tab moves right and wraps to the next row, and the arrow keys only leave the cell when
+  // the caret sits on the first or last visual line.
   const handleCellKeyDown = (
     e: React.KeyboardEvent<HTMLDivElement>,
     r: number,
     c: number
   ): void => {
+    // While an IME is composing, Enter confirms the candidate word instead of
+    // moving to the next cell, so the cell keys are left alone until the
+    // composition ends.
+    if (e.nativeEvent.isComposing) return
     const el = e.currentTarget
     const text = el.textContent ?? ''
     const offset = getCaretOffset(el)
@@ -256,7 +267,8 @@ export function TableBlock({ block, registerRef, getNeighbors }: TableBlockProps
       return
     }
     if (e.key === 'Backspace' && offset === 0 && text === '') {
-      // 空格子里退格 = 回到上一个单元格;第一格不动,避免误删整表
+      // Backspace in an empty cell moves to the previous cell; the very first cell does nothing,
+      // to avoid deleting the whole table by accident.
       if (r === 0 && c === 0) return
       e.preventDefault()
       if (c > 0) navigate(r, c - 1, 'end')
@@ -265,7 +277,8 @@ export function TableBlock({ block, registerRef, getNeighbors }: TableBlockProps
   }
 
   const handleWrapperKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
-    // 只处理表格主体本身获得焦点的情况,单元格里的按键冒泡到这里直接放行
+    // Only handle the case where the table body itself has the focus; keys bubbling up from a
+    // cell are let through.
     if (e.target !== e.currentTarget) return
     if (e.key === 'Backspace' || e.key === 'Delete') {
       e.preventDefault()
