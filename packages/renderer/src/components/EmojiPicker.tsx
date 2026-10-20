@@ -15,6 +15,7 @@ interface EmojiPickerProps {
   onClose: () => void
 }
 
+/** The emoji picker. It closes on an outside click or on Escape. */
 export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
 

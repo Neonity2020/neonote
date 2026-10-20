@@ -1,3 +1,4 @@
+// Upstream shadcn/ui primitive (https://ui.shadcn.com), kept as-is; keep edits minimal.
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/utils'

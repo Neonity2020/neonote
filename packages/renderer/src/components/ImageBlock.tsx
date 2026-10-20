@@ -9,6 +9,10 @@ interface ImageBlockProps {
   getNeighbors: () => { prev: Block | null; next: Block | null }
 }
 
+/**
+ * An image block. Delete removes the block, Enter opens the picker on an empty block or inserts a
+ * paragraph below a filled one, and the arrow keys move between the neighbouring blocks.
+ */
 export function ImageBlock({ block, registerRef, getNeighbors }: ImageBlockProps): JSX.Element {
   const updateBlockLocal = useStore((s) => s.updateBlockLocal)
   const insertBlockAfter = useStore((s) => s.insertBlockAfter)
@@ -56,6 +60,7 @@ export function ImageBlock({ block, registerRef, getNeighbors }: ImageBlockProps
   }
 
   if (!src) {
+    // The empty state doubles as the trigger that opens the file picker.
     return (
       <div
         ref={registerRef}

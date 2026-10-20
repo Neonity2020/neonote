@@ -15,17 +15,22 @@ import {
 } from '@neonity/notion-clone-shared'
 
 /**
- * 设置服务:设置按分区(theme / editor / ai)序列化进 SQLite 的 settings 表。
- * 读取时与默认值深度合并并做一次校验,保证渲染层永远拿到合法值。
+ * Settings service: every section (theme / editor / ai) is serialized into the
+ * SQLite settings table as one JSON blob.
+ * Reads merge the stored values with the defaults and validate them, so the
+ * renderer always receives legal values.
  */
 
+// Each section is one JSON blob stored under its own key in the settings table.
 const SECTIONS = ['theme', 'editor', 'ai'] as const
+// Bound on the user-supplied extra prompt; it is appended to the system prompt
+// of every request.
 const MAX_PROMPT_LEN = 4000
 
 type Listener = (settings: AppSettings) => void
 const listeners = new Set<Listener>()
 
-/** 订阅设置变更(主进程内部使用,比如 AI 服务需要重建会话) */
+/** Subscribe to settings changes (used inside the main process, e.g. the AI service rebuilds its session). */
 export function onSettingsChanged(cb: Listener): () => void {
   listeners.add(cb)
   return () => listeners.delete(cb)
@@ -37,7 +42,11 @@ function pickEnum<T extends string>(value: unknown, allowed: readonly T[], fallb
     : fallback
 }
 
-/** 把任意输入收敛成合法设置(坏值一律回落到默认) */
+/**
+ * The single validation chokepoint: every settings value that leaves this
+ * module passes through here, so the renderer can never receive an illegal
+ * value. Bad values always fall back to the default.
+ */
 export function sanitize(input: unknown): AppSettings {
   const raw = (input ?? {}) as DeepPartial<AppSettings>
   const editor = (raw.editor ?? {}) as DeepPartial<AppSettings['editor']>
@@ -70,12 +79,16 @@ export function sanitize(input: unknown): AppSettings {
   }
 }
 
+/** The current settings, merged with the defaults and sanitized. */
 export function getSettings(): AppSettings {
   return sanitize(db.loadSettingsRaw())
 }
 
+/** Apply a partial patch, persist every section, and notify the subscribers. */
 export function updateSettings(patch: DeepPartial<AppSettings>): AppSettings {
   const current = getSettings()
+  // Sections are merged one level deep, so a patch such as { ai: { model } }
+  // does not drop the other keys of the ai section.
   const next = sanitize({
     ...current,
     ...patch,
@@ -89,15 +102,17 @@ export function updateSettings(patch: DeepPartial<AppSettings>): AppSettings {
     try {
       cb(next)
     } catch {
-      // 单个订阅者出错不影响设置保存
+      // A failing subscriber must not stop the settings from being saved.
     }
   }
   return next
 }
 
+/** Clear the stored settings and fall back to the defaults. */
 export function resetSettings(): AppSettings {
   db.clearSettings()
-  // 走一遍 sanitize,避免把 DEFAULT_SETTINGS 的嵌套对象引用泄漏出去
+  // Run it through sanitize so the nested default objects are not handed out
+  // by reference.
   const next = sanitize(DEFAULT_SETTINGS)
   for (const cb of listeners) {
     try {
@@ -121,12 +136,13 @@ function dirSize(dir: string): { count: number; bytes: number } {
         bytes += st.size
       }
     } catch {
-      // 忽略读不到的条目
+      // Skip entries that cannot be read.
     }
   }
   return { count, bytes }
 }
 
+/** Version, runtime and on-disk storage information for the settings panel. */
 export function getAppInfo(): AppInfo {
   const dataDir = app.getPath('userData')
   const assetsDir = getAssetsDir()
@@ -156,13 +172,14 @@ export function getAppInfo(): AppInfo {
   }
 }
 
-/** 广播最新设置给所有渲染窗口 */
+/** Broadcast the latest settings to every renderer window. */
 function broadcast(settings: AppSettings): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('settings:changed', settings)
   }
 }
 
+/** Register the settings IPC handlers. */
 export function registerSettings(): void {
   ipcMain.handle('settings:get', () => getSettings())
 

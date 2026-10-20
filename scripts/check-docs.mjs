@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * 文档链接校验器。
+ * Documentation link validator.
  *
- * 校验两件事：
- *   1. 所有 Markdown 内部链接指向的文件确实存在；
- *   2. 所有 `#锚点` 在目标文件里真实存在（按 GitHub 的标题 slug 规则匹配）。
+ * Checks two things:
+ *   1. every internal Markdown link points at a file that actually exists;
+ *   2. every `#anchor` really exists in the target file, matched with GitHub's
+ *      heading slug rules.
  *
- * 用法：
+ * Usage:
  *   node scripts/check-docs.mjs
  *
- * 退出码 0 表示全部通过，1 表示有错误。
+ * Exit code 0 means everything passed, 1 means errors were found.
  */
 
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
@@ -19,10 +20,10 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DOCS_DIR = join(ROOT, 'docs')
 
-/** 会被一起校验的 Markdown 根文件（相对仓库根）。 */
+/** Markdown root files that are validated too, relative to the repo root. */
 const EXTRA_FILES = ['README.md']
 
-/* ---------- 文件收集 ---------- */
+/* ---------- File collection ---------- */
 
 function walk(dir) {
   const out = []
@@ -42,9 +43,9 @@ for (const rel of EXTRA_FILES) {
   if (existsSync(full)) files.push(full)
 }
 
-/* ---------- Markdown 解析 ---------- */
+/* ---------- Markdown parsing ---------- */
 
-/** 去掉围栏代码块，避免把示例里的路径当成真实链接。 */
+/** Strip fenced code blocks, so paths inside examples are not treated as real links. */
 function stripCodeBlocks(text) {
   const lines = text.split('\n')
   const out = []
@@ -62,7 +63,7 @@ function stripCodeBlocks(text) {
   return out.join('\n')
 }
 
-/** GitHub 风格的标题 slug：小写、去标点、空格转连字符。 */
+/** GitHub-style heading slug: lowercase, punctuation removed, spaces to hyphens. */
 function slugify(heading) {
   return heading
     .trim()
@@ -71,7 +72,7 @@ function slugify(heading) {
     .replace(/\s+/g, '-')
 }
 
-/** 收集一个文件里所有标题的 slug（同名标题会带 -1、-2 后缀）。 */
+/** Collect the slugs of every heading in a file (duplicate headings get a -1, -2 suffix). */
 function collectSlugs(markdown) {
   const slugs = new Map()
   const counts = new Map()
@@ -87,19 +88,19 @@ function collectSlugs(markdown) {
   return slugs
 }
 
-/** 取出文件里的所有链接。返回 { target, line } 列表。 */
+/** Extract every link in a file. Returns a list of { target, line }. */
 function collectLinks(markdown) {
   const lines = stripCodeBlocks(markdown).split('\n')
   const links = []
 
   lines.forEach((line, i) => {
-    // 行内链接 [text](target) 与图片 ![alt](target)
+    // Inline links [text](target) and images ![alt](target)
     const inline = /!?\[[^\]]*\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g
     let m
     while ((m = inline.exec(line)) !== null) {
       links.push({ target: m[1], line: i + 1 })
     }
-    // 引用式定义 [id]: target
+    // Reference-style definition [id]: target
     const def = /^\s{0,3}\[[^\]]+\]:\s*(\S+)/.exec(line)
     if (def) {
       links.push({ target: def[1], line: i + 1 })
@@ -111,7 +112,7 @@ function collectLinks(markdown) {
 
 const isExternal = (t) => /^(https?:|mailto:|tel:|data:|#|javascript:)/i.test(t)
 
-/* ---------- 校验 ---------- */
+/* ---------- Validation ---------- */
 
 const errors = []
 const slugCache = new Map()
@@ -130,7 +131,7 @@ for (const file of files) {
   for (const { target, line } of collectLinks(markdown)) {
     if (isExternal(target)) continue
 
-    // 拆成 路径#锚点
+    // Split into path and #anchor
     const hashIdx = target.indexOf('#')
     const pathPart = hashIdx >= 0 ? target.slice(0, hashIdx) : target
     const anchor = hashIdx >= 0 ? decodeURIComponent(target.slice(hashIdx + 1)) : ''
@@ -160,7 +161,7 @@ for (const file of files) {
   }
 }
 
-/* ---------- 输出 ---------- */
+/* ---------- Output ---------- */
 
 if (errors.length > 0) {
   console.error(`✗ 文档校验失败，共 ${errors.length} 个问题：\n`)

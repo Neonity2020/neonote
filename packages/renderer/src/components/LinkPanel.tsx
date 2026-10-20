@@ -9,19 +9,20 @@ interface LinkPanelProps {
 }
 
 /**
- * 页面底部的双向链接面板。
+ * The bidirectional link panel at the bottom of a page.
  *
- * - 「引用了本页」= 反向链接:哪些页面的正文里写了 `[[本页标题]]`
- * - 「本页引用」= 出链:本页正文里写了哪些 `[[标题]]`
+ * - "references this page" = the backlinks: pages whose body contains `[[this page's title]]`
+ * - "this page references" = the outgoing links: the `[[title]]` links in this page's body
  *
- * 链接本身没有单独的表,`[[标题]]` 就是块正文里的一段纯文本,
- * 所以这里查的是实时解析出来的结果,永远和正文一致。
+ * There is no separate link table: a `[[title]]` is plain text inside a block body, so the links
+ * are parsed live from the blocks and are always consistent with the text.
  */
 export function LinkPanel({ pageId }: LinkPanelProps): JSX.Element | null {
   const [links, setLinks] = useState<PageLinks | null>(null)
   const selectPage = useStore((s) => s.selectPage)
   const createPage = useStore((s) => s.createPage)
-  // 页面增删改名会让已有链接的解析结果变化,这个版本号用来触发刷新
+  // Creating, renaming or deleting a page changes how existing links resolve; this counter
+  // triggers a refresh.
   const linksVersion = useStore((s) => s.linksVersion)
   const blocks = useStore((s) => s.blocks)
 
@@ -34,7 +35,8 @@ export function LinkPanel({ pageId }: LinkPanelProps): JSX.Element | null {
     void load()
   }, [load, linksVersion])
 
-  // 正文改动也会影响链接关系,但编辑是高频动作,停手一会儿再查
+  // Body edits also change the link relations, but typing is high-frequency and every query scans
+  // the blocks, so the refresh is debounced.
   useEffect(() => {
     const timer = setTimeout(() => {
       void load()
@@ -46,7 +48,7 @@ export function LinkPanel({ pageId }: LinkPanelProps): JSX.Element | null {
   const { outgoing, backlinks } = links
   if (outgoing.length === 0 && backlinks.length === 0) return null
 
-  /** 打开出链目标;页面不存在就按标题建一个 */
+  /** Open an outgoing link target; create the page from the title when it does not exist. */
   const openOutgoing = async (title: string, targetId: string | null): Promise<void> => {
     if (targetId) {
       await selectPage(targetId)
@@ -62,7 +64,7 @@ export function LinkPanel({ pageId }: LinkPanelProps): JSX.Element | null {
         链接
       </div>
 
-      {/* ---------- 反向链接 ---------- */}
+      {/* ---------- Backlinks ---------- */}
       {backlinks.length > 0 && (
         <div className="mb-4">
           <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -94,7 +96,7 @@ export function LinkPanel({ pageId }: LinkPanelProps): JSX.Element | null {
         </div>
       )}
 
-      {/* ---------- 出链 ---------- */}
+      {/* ---------- Outgoing links ---------- */}
       {outgoing.length > 0 && (
         <div>
           <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">

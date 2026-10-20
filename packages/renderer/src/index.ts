@@ -1,5 +1,7 @@
-// npm 发布入口：导出可复用的 App、状态 store 与主要组件。
-// main.tsx 是 Electron 宿主的应用启动入口（index.html 引用），不属于对外 API。
+// npm publish entry point: exports the reusable App, the state stores and the
+// main components.
+// main.tsx is the Electron host's bootstrap entry (referenced by index.html),
+// so it is deliberately not part of the public API.
 export { default as App } from './App'
 export { useStore } from './store'
 export { useSettings } from './settingsStore'

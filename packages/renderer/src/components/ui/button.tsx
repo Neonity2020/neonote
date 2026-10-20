@@ -1,3 +1,4 @@
+// Upstream shadcn/ui primitive (https://ui.shadcn.com), kept as-is; keep edits minimal.
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'

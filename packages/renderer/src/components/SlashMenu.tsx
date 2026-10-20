@@ -8,6 +8,10 @@ interface SlashMenuProps {
   onHover: (index: number) => void
 }
 
+/**
+ * The slash menu: the block-type picker, listing the block types the current block is converted
+ * into.
+ */
 export function SlashMenu({ items, selectedIndex, onSelect, onHover }: SlashMenuProps): JSX.Element {
   return (
     <div className="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
@@ -26,6 +30,7 @@ export function SlashMenu({ items, selectedIndex, onSelect, onHover }: SlashMenu
                 index === selectedIndex ? 'bg-accent text-accent-foreground' : ''
               )}
               onMouseDown={(e) => {
+                // Select on mousedown so the block keeps the focus and the caret.
                 e.preventDefault()
                 onSelect(item)
               }}

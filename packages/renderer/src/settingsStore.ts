@@ -19,7 +19,8 @@ export const useSettings = create<SettingsState>((set) => ({
   },
 
   update: async (patch) => {
-    // 主进程负责校验与落库,回传的就是最终生效值
+    // The main process owns validation and persistence, so the value it returns
+    // is already the final effective settings.
     const settings = await window.settings.set(patch)
     set({ settings })
   },

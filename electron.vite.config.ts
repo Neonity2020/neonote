@@ -10,19 +10,24 @@ delete process.env.ELECTRON_RUN_AS_NODE
 
 export default defineConfig({
   main: {
-    // @neonity/notion-clone-shared 是 .ts 源码包（main 指向 src/index.ts），不能被
-    // 运行时 require，必须排除出外部化、直接打进 out/main
+    // @neonity/notion-clone-shared is a TypeScript-source package whose `main`
+    // points at src/index.ts, so it cannot be required at runtime. It is
+    // excluded from externalization and bundled into out/main instead.
     plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })],
     build: {
       rollupOptions: {
+        // node:sqlite is a Node built-in, it must stay an external require.
         external: ['node:sqlite']
       }
     }
   },
   preload: {
+    // Same reason as in the main process: the shared package ships TypeScript
+    // sources, so it has to be bundled rather than required at runtime.
     plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })]
   },
   renderer: {
+    // The renderer lives in packages/renderer, not in src/renderer.
     root: 'packages/renderer',
     resolve: {
       alias: {
@@ -32,7 +37,8 @@ export default defineConfig({
     plugins: [react()],
     build: {
       rollupOptions: {
-        // electron-vite 的默认 input 固定从 src/renderer/index.html 找，自定义 root 后必须显式指定
+        // electron-vite looks for src/renderer/index.html by default, so the
+        // input has to be spelled out once the root is overridden.
         input: resolve(__dirname, 'packages/renderer/index.html')
       }
     }

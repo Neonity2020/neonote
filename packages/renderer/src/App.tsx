@@ -33,14 +33,14 @@ export default function App(): JSX.Element {
     void loadSettings().finally(() => setReady(true))
   }, [init, loadSettings])
 
-  // 其他窗口 / 主进程改了设置时同步过来
+  // Pick up settings changed by the main process or by another window.
   useEffect(() => {
     return window.settings.onChanged((next) => {
       useSettings.setState({ settings: next })
     })
   }, [])
 
-  // 跟随系统主题
+  // Track the system theme, used when the user picks "system".
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = (e: MediaQueryListEvent): void => setSystemDark(e.matches)
@@ -48,21 +48,25 @@ export default function App(): JSX.Element {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  // An explicit choice wins; "system" follows the OS preference.
   const dark = theme === 'dark' || (theme === 'system' && systemDark)
 
   useEffect(() => {
+    // The `dark` class drives the Tailwind dark variant, `colorScheme` aligns
+    // native form controls and scrollbars with it.
     document.documentElement.classList.toggle('dark', dark)
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
   }, [dark])
 
-  // 外观设置通过 CSS 变量下发,编辑器直接消费
+  // The appearance settings are published as CSS custom properties that the
+  // editor CSS consumes directly.
   useEffect(() => {
     const root = document.documentElement.style
     root.setProperty('--editor-font-size', `${editor.fontSize}px`)
     root.setProperty('--editor-max-width', `${CONTENT_WIDTHS[editor.contentWidth]}px`)
   }, [editor.fontSize, editor.contentWidth])
 
-  // AI 助手改动笔记后,刷新侧边栏与编辑器
+  // The AI assistant changed a note: refresh the sidebar and the editor.
   useEffect(() => {
     return window.ai.onNotesChanged(() => {
       void refreshFromAi()
@@ -80,6 +84,7 @@ export default function App(): JSX.Element {
         <div className="relative h-full min-w-0 flex-1">
           <main className="h-full overflow-y-auto">
             {!ready ? null : currentPageId ? (
+              // Remount the editor per page, so per-page state cannot leak between pages.
               <Editor key={currentPageId} />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-4">

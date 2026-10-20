@@ -3,7 +3,8 @@ const path = require('path')
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ['class'],
-  // content 相对路径按 process.cwd 解析，不跟配置文件走；必须用 __dirname 锚定
+  // `content` globs are resolved relative to process.cwd, not to this config
+  // file, so they are anchored with __dirname to survive being moved.
   content: [path.join(__dirname, 'index.html'), path.join(__dirname, 'src/**/*.{ts,tsx}')],
   theme: {
     extend: {

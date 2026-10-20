@@ -3,28 +3,33 @@ import { buildPageTitleIndex, lookupPageByTitle, parseWikiLinks } from '@neonity
 import { getBlockElement, getCaretOffset, setCaretOffset } from './caret'
 
 /**
- * 双链在渲染层的两件事:
- * 1. 把正文里的 `[[标题]]` 显示成可点击的链接(装饰器)
- * 2. 输入 `[[` 时弹出页面选择器(触发器)
+ * The renderer layer has two jobs for wiki links:
+ * 1. Render the `[[title]]` in a block body as a clickable link (decorator).
+ * 2. Offer a page picker while the user types `[[` (trigger).
  *
- * 约束:块正文是**纯文本**,DOM 子节点由浏览器原生编辑行为管理,React 不碰它们。
- * 所以装饰器绝不能改文本,只能在保持一字不差的前提下把匹配区间包进 span。
+ * Constraint: a block body is **plain text** and its DOM children belong to the
+ * browser's native editing behaviour, so React never touches them. The
+ * decorator therefore must not change the text; it may only wrap the matched
+ * ranges in spans, byte for byte.
  */
 
-/** 链接解析出来的目标 */
+/** The resolved target of a wiki link. */
 export interface WikiLinkTarget {
-  /** 目标页面是否存在 */
+  /** Whether the target page exists. */
   exists: boolean
-  /** 目标页面 id;不存在时为 null */
+  /** Id of the target page, or null when the page does not exist. */
   pageId: string | null
-  /** 目标页面图标 */
+  /** Icon of the target page. */
   icon: string | null
 }
 
-/** 装饰签名挂在元素上,用来判断"结构有没有变过" */
+/** Attribute holding the decoration signature, used to detect structural changes. */
 const SIG_ATTR = 'data-wiki-sig'
 
-/** 页面列表 → 标题索引。页面数组引用不变时复用,避免每个链接都重建索引 */
+/**
+ * Page list -> title index. The index is reused while the `pages` array
+ * reference is unchanged, so every link does not rebuild it.
+ */
 let cachedPages: PageMeta[] | null = null
 let cachedIndex: PageTitleIndex<PageMeta> | null = null
 let cachedResolver: ((title: string) => WikiLinkTarget) | null = null
@@ -37,7 +42,10 @@ function titleIndex(pages: PageMeta[]): PageTitleIndex<PageMeta> {
   return cachedIndex
 }
 
-/** 取得解析函数;同一个 pages 引用下复用同一个函数,免得每次渲染都换引用 */
+/**
+ * Get the resolver function; the same `pages` reference reuses the same
+ * function, so the identity stays stable across renders.
+ */
 export function getLinkResolver(pages: PageMeta[]): (title: string) => WikiLinkTarget {
   const index = titleIndex(pages)
   if (cachedResolver) return cachedResolver
@@ -49,9 +57,10 @@ export function getLinkResolver(pages: PageMeta[]): (title: string) => WikiLinkT
 }
 
 /**
- * 核对现有的 span 结构是否还和文本对得上。
- * 浏览器在编辑时偶尔会合并/拆分文本节点,签名没变不代表 DOM 还完好,
- * 所以重建前先比一次,省掉一次无谓的重建。
+ * Check that the existing span structure still matches the text.
+ * The browser occasionally merges or splits text nodes while editing, so an
+ * unchanged signature does not prove that the DOM is still intact. The
+ * structure is compared once before rebuilding, to avoid a needless rebuild.
  */
 function spansMatch(el: HTMLElement, matches: ReturnType<typeof parseWikiLinks>, text: string): boolean {
   const spans = el.querySelectorAll('.wiki-link')
@@ -63,13 +72,15 @@ function spansMatch(el: HTMLElement, matches: ReturnType<typeof parseWikiLinks>,
 }
 
 /**
- * 装饰元素里的双链:把 `[[标题]]` 包进 span,纯文本内容保持不变。
+ * Decorate the wiki links inside an element: wrap every `[[title]]` in a span
+ * and leave the plain text content untouched.
  *
- * 签名只由"链接区间 + 目标状态"决定 —— 单纯的文字改动不会触发重建,
- * 因为浏览器原生编辑已经把新字符插进了正确的文本节点。
- * 重建会打断光标,所以重建前后用文本偏移把光标放回原处。
+ * The signature depends only on the link ranges plus the target state, so a
+ * plain text edit does not trigger a rebuild: the browser's native editing has
+ * already put the new characters into the right text node. A rebuild would
+ * interrupt the caret, so the caret is put back by text offset around it.
  *
- * @returns DOM 结构是否被重建过
+ * @returns whether the DOM structure was rebuilt
  */
 export function decorateWikiLinks(
   el: HTMLElement,
@@ -113,8 +124,10 @@ export function decorateWikiLinks(
 }
 
 /**
- * 用外部文本覆盖块内容,并清掉装饰签名。
- * 直接写 textContent 会抹掉 span,签名不清掉的话下一次装饰会以为"结构没变"而跳过重建。
+ * Overwrite a block's content with external text and clear the decoration
+ * signature. Writing `textContent` drops the spans, so the signature has to go
+ * as well: otherwise the next decoration pass would think the structure is
+ * unchanged and skip the rebuild.
  */
 export function resetBlockText(el: HTMLElement, text: string): void {
   el.textContent = text
@@ -122,8 +135,9 @@ export function resetBlockText(el: HTMLElement, text: string): void {
 }
 
 /**
- * 在光标位置找 `[[` 触发点。
- * 只认光标左边紧挨着的一段,`[[` 与光标之间不能出现 `[`、`]` 或换行。
+ * Find the `[[` trigger point at the caret.
+ * Only the text immediately left of the caret counts, and no `[`, `]` or
+ * newline may appear between the `[[` and the caret.
  */
 export function findLinkTrigger(
   text: string,
@@ -135,7 +149,7 @@ export function findLinkTrigger(
   return { start: offset - m[0].length, filter: m[1] }
 }
 
-/** 找出元素里被点到的双链元素(点 span 本身或 span 里的文字都算) */
+/** Find the wiki link element that was clicked; the span itself or its text counts. */
 export function findWikiLinkElement(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof HTMLElement)) return null
   const link = target.closest('.wiki-link')
@@ -143,10 +157,12 @@ export function findWikiLinkElement(target: EventTarget | null): HTMLElement | n
 }
 
 /**
- * 把选中的页面写成 `[[标题]]` 插到光标处。
+ * Insert the selected page as a `[[title]]` at the caret.
  *
- * DOM 已经在函数里改好,调用方拿返回的 text 去同步 store 即可。
- * 找不到触发点(用户可能已经移开光标)时返回 null,调用方按"放弃插入"处理。
+ * The DOM is already updated inside this function; the caller only has to sync
+ * the returned text into the store. When no trigger point is found (the user may
+ * have moved the caret) null is returned and the caller treats it as "give up on
+ * the insertion".
  */
 export function applyWikiLink(
   blockId: string,

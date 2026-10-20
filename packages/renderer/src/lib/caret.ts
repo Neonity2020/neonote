@@ -1,5 +1,11 @@
 /** Caret offset helpers for plaintext contenteditable elements. */
 
+/**
+ * Character offset of the caret inside a plain-text contenteditable element.
+ *
+ * The offset is measured against the element's text content, so it stays
+ * meaningful even though the element is made up of many separate text nodes.
+ */
 export function getCaretOffset(el: HTMLElement): number {
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return 0
@@ -11,6 +17,12 @@ export function getCaretOffset(el: HTMLElement): number {
   return pre.toString().length
 }
 
+/**
+ * Place the caret at a character offset inside a plain-text contenteditable element.
+ *
+ * A contenteditable element holds many text nodes, so the target node is found
+ * by walking them with a TreeWalker and counting characters.
+ */
 export function setCaretOffset(el: HTMLElement, offset: number): void {
   const sel = window.getSelection()
   if (!sel) return
@@ -46,6 +58,9 @@ export function setCaretOffset(el: HTMLElement, offset: number): void {
 
 /* ---------- Focus registry ---------- */
 
+// Editable element of every mounted block, keyed by block id. The registry lets
+// code outside React (the wiki link picker, the slash menu) find and focus a
+// block without going through the component tree.
 const blockElements = new Map<string, HTMLElement>()
 
 export function registerBlockElement(id: string, el: HTMLElement | null): void {
@@ -56,11 +71,12 @@ export function registerBlockElement(id: string, el: HTMLElement | null): void {
   }
 }
 
-/** 取某个块的可编辑元素(双链插入要用) */
+/** The editable element of a block, used when inserting a wiki link. */
 export function getBlockElement(id: string): HTMLElement | undefined {
   return blockElements.get(id)
 }
 
+/** Focus a block now, placing the caret at `offset` or at the end of its text. */
 export function focusBlock(id: string, offset?: number): void {
   const el = blockElements.get(id)
   if (!el) return
@@ -76,10 +92,17 @@ export function focusBlock(id: string, offset?: number): void {
   }
 }
 
+/** Focus a block on the next frame, after React has had a chance to paint it. */
 export function focusSoon(id: string, offset?: number): void {
   requestAnimationFrame(() => focusBlock(id, offset))
 }
 
+/**
+ * Overwrite a block's text in the DOM.
+ *
+ * Assigning `textContent` also drops the wiki link spans; the decorator
+ * rebuilds them on the next pass.
+ */
 export function setBlockElementText(id: string, text: string): void {
   const el = blockElements.get(id)
   if (el && el.isContentEditable) {
@@ -121,8 +144,11 @@ export function consumePendingFocus(id: string): number | null | undefined {
 
 /* ---------- Pending table cell focus ---------- */
 /**
- * 表格块没有"一个"可编辑元素,聚焦主体时应该落到第一个单元格。
- * 斜杠菜单刚把块转成表格时组件还没挂载,这里先登记,等表格挂载后自行消费。
+ * A table block has no single editable element, so focusing the block body
+ * means focusing its first cell.
+ * When the slash menu has just converted the block into a table the component
+ * is not mounted yet, so the request is parked here and consumed by the table
+ * once it mounts.
  */
 let pendingCellFocus: string | null = null
 
@@ -138,11 +164,12 @@ export function consumeCellFocus(id: string): boolean {
   return false
 }
 
-/* ---------- Pending scroll (从反向链接跳到被引用的块) ---------- */
+/* ---------- Pending scroll (jumping in from a backlink) ---------- */
 
 /**
- * 请求把某个块滚动到视野中央。
- * 从反向链接跳进另一个页面时用:先记下请求,等目标块挂载后由它自己消费。
+ * Request that a block is scrolled into the middle of the viewport.
+ * Used when jumping into another page from a backlink: the request is parked
+ * until the target block has mounted and consumes it.
  */
 let pendingScroll: { id: string } | null = null
 

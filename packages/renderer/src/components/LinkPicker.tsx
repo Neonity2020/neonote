@@ -2,7 +2,7 @@ import type { PageMeta } from '@neonity/notion-clone-shared'
 import { FileText, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-/** 选择器里的一项:要么是已有页面,要么是"新建这个标题" */
+/** A picker entry: either an existing page or the "create this title" option. */
 export interface LinkPickerItem {
   kind: 'page' | 'create'
   title: string
@@ -16,6 +16,10 @@ interface LinkPickerProps {
   onHover: (index: number) => void
 }
 
+/**
+ * The wiki-link picker. It offers the matching pages plus a "create this title" entry when no
+ * page has exactly that name.
+ */
 export function LinkPicker({
   items,
   selectedIndex,
@@ -39,6 +43,7 @@ export function LinkPicker({
                 index === selectedIndex ? 'bg-accent text-accent-foreground' : ''
               )}
               onMouseDown={(e) => {
+                // Select on mousedown so the block keeps the focus and the caret.
                 e.preventDefault()
                 onSelect(item)
               }}

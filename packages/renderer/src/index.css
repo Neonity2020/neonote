@@ -76,7 +76,8 @@
 
 /* ---------- Editor ---------- */
 
-/* 正文字号由「设置 → 外观」通过根节点 CSS 变量下发 */
+/* The body font size is pushed down as a CSS variable on the root element by
+   Settings -> Appearance. */
 .block-body {
   font-size: var(--editor-font-size, 15px);
   line-height: 1.8;
@@ -106,9 +107,11 @@
   background: hsl(var(--accent));
 }
 
-/* ---------- Wiki links (双链) ---------- */
+/* ---------- Wiki links ---------- */
 
-/* 正文里的 [[标题]] 被装饰器包进这个 span;方括号保留可见,正文因此始终与数据库一字不差 */
+/* The decorator wraps a `[[title]]` range in this span. The brackets stay
+   visible on purpose, so the rendered text always matches the database
+   character for character. */
 .wiki-link {
   color: hsl(var(--primary));
   cursor: pointer;
@@ -126,7 +129,7 @@
   text-decoration-color: hsl(var(--primary));
 }
 
-/* 指向的页面还没创建:点一下会新建 */
+/* The target page does not exist yet: clicking it creates the page. */
 .wiki-link-missing {
   color: hsl(var(--muted-foreground));
   text-decoration-style: dashed;
