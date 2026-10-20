@@ -73,6 +73,8 @@ function registerIpc(): void {
 
   ipcMain.handle('search:query', (_e, query: string) => db.search(query))
 
+  ipcMain.handle('links:page-links', (_e, pageId: string) => db.getPageLinks(pageId))
+
   ipcMain.handle('images:save', (_e, input: SaveImageInput) => saveImage(input))
   ipcMain.handle('images:pick', () => pickImage())
 }

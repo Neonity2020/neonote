@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Block, BlockContent, BlockType, PageMeta } from '@neonity/notion-clone-shared'
 import { createTableData, tableToText } from '@neonity/notion-clone-shared'
+import { requestScrollTo } from '@/lib/caret'
 
 const SAVE_DEBOUNCE = 400
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -41,9 +42,16 @@ function schedulePageSave(id: string): void {
     setTimeout(() => {
       pageSaveTimers.delete(id)
       const page = useStore.getState().pages.find((p) => p.id === id)
-      if (page) {
-        void window.api.updatePage({ id: page.id, title: page.title, icon: page.icon })
-      }
+      if (!page) return
+      void window.api
+        .updatePage({ id: page.id, title: page.title, icon: page.icon })
+        .then((result) => {
+          // 改名会同步改写别处正文里的 [[旧标题]],把受影响的块拉回本地
+          if (result.updatedBlockIds.length > 0) {
+            void useStore.getState().syncBlocksByIds(result.updatedBlockIds)
+          }
+        })
+        .catch((err) => console.error('保存页面失败', err))
     }, SAVE_DEBOUNCE)
   )
 }
@@ -53,10 +61,15 @@ interface StoreState {
   currentPageId: string | null
   blocks: Block[]
   blocksLoading: boolean
+  /**
+   * 链接解析版本号。页面增删改名会让已有 `[[标题]]` 的解析结果变化,
+   * 块组件靠它知道"该重新给链接上色了"。
+   */
+  linksVersion: number
 
   init: () => Promise<void>
-  selectPage: (id: string | null) => Promise<void>
-  createPage: (parentId?: string | null) => Promise<string>
+  selectPage: (id: string | null, focusBlockId?: string) => Promise<void>
+  createPage: (parentId?: string | null, title?: string) => Promise<string>
   renamePage: (id: string, title: string) => void
   setPageIcon: (id: string, icon: string | null) => void
   deletePage: (id: string) => Promise<void>
@@ -75,6 +88,8 @@ interface StoreState {
   ) => Promise<Block | null>
   removeBlock: (id: string) => Promise<void>
   setBlocksOrder: (orderedIds: string[]) => void
+  /** 把指定块(可能来自页面改名引起的正文改写)同步回本地 */
+  syncBlocksByIds: (ids: string[]) => Promise<void>
   /** AI 助手改动笔记后,从数据库重新加载页面与块 */
   refreshFromAi: () => Promise<void>
 }
@@ -84,6 +99,7 @@ export const useStore = create<StoreState>((set, get) => ({
   currentPageId: null,
   blocks: [],
   blocksLoading: false,
+  linksVersion: 0,
 
   init: async () => {
     const pages = await window.api.listPages()
@@ -93,7 +109,7 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  selectPage: async (id) => {
+  selectPage: async (id, focusBlockId) => {
     flushSaves()
     if (!id) {
       set({ currentPageId: null, blocks: [] })
@@ -102,17 +118,22 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ currentPageId: id, blocksLoading: true })
     const blocks = await window.api.listBlocks(id)
     set({ blocks, blocksLoading: false })
+    // 从反向链接跳进来时,滚动到被引用的那一块
+    if (focusBlockId) requestScrollTo(focusBlockId)
   },
 
-  createPage: async (parentId = null) => {
-    const page = await window.api.createPage({ parentId })
-    set((s) => ({ pages: [...s.pages, page] }))
+  createPage: async (parentId = null, title = '') => {
+    const page = await window.api.createPage({ parentId, title })
+    set((s) => ({ pages: [...s.pages, page], linksVersion: s.linksVersion + 1 }))
     await get().selectPage(page.id)
     return page.id
   },
 
   renamePage: (id, title) => {
-    set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, title } : p)) }))
+    set((s) => ({
+      pages: s.pages.map((p) => (p.id === id ? { ...p, title } : p)),
+      linksVersion: s.linksVersion + 1
+    }))
     schedulePageSave(id)
   },
 
@@ -137,7 +158,7 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     const remaining = pages.filter((p) => !removed.has(p.id))
     await window.api.deletePage(id)
-    set({ pages: remaining })
+    set((s) => ({ pages: remaining, linksVersion: s.linksVersion + 1 }))
     if (currentPageId && removed.has(currentPageId)) {
       await get().selectPage(remaining[0]?.id ?? null)
     }
@@ -234,6 +255,27 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  syncBlocksByIds: async (ids) => {
+    const { currentPageId, blocks } = get()
+    if (!currentPageId || ids.length === 0) return
+    const local = new Set(blocks.map((b) => b.id))
+    const relevant = new Set(ids.filter((id) => local.has(id)))
+    if (relevant.size === 0) return
+
+    const fresh = await window.api.listBlocks(currentPageId)
+    const byId = new Map(fresh.map((b) => [b.id, b]))
+    set((s) => ({
+      blocks: s.blocks.map((b) => {
+        if (!relevant.has(b.id)) return b
+        const f = byId.get(b.id)
+        if (!f) return b
+        // 正在编辑(有未落库的改动)的块不覆盖,免得踩掉用户刚敲的字
+        if (saveTimers.has(b.id)) return b
+        return { ...b, content: f.content }
+      })
+    }))
+  },
+
   refreshFromAi: async () => {
     // 先把本地未落库的编辑写回去,再整体重读,避免 AI 的改动被旧快照覆盖
     flushSaves()
@@ -241,9 +283,9 @@ export const useStore = create<StoreState>((set, get) => ({
     const { currentPageId } = get()
     if (currentPageId && pages.some((p) => p.id === currentPageId)) {
       const blocks = await window.api.listBlocks(currentPageId)
-      set({ pages, blocks })
+      set((s) => ({ pages, blocks, linksVersion: s.linksVersion + 1 }))
     } else {
-      set({ pages })
+      set((s) => ({ pages, linksVersion: s.linksVersion + 1 }))
       await get().selectPage(pages[0]?.id ?? null)
     }
   }

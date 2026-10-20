@@ -56,6 +56,11 @@ export function registerBlockElement(id: string, el: HTMLElement | null): void {
   }
 }
 
+/** 取某个块的可编辑元素(双链插入要用) */
+export function getBlockElement(id: string): HTMLElement | undefined {
+  return blockElements.get(id)
+}
+
 export function focusBlock(id: string, offset?: number): void {
   const el = blockElements.get(id)
   if (!el) return
@@ -115,7 +120,6 @@ export function consumePendingFocus(id: string): number | null | undefined {
 }
 
 /* ---------- Pending table cell focus ---------- */
-
 /**
  * 表格块没有"一个"可编辑元素,聚焦主体时应该落到第一个单元格。
  * 斜杠菜单刚把块转成表格时组件还没挂载,这里先登记,等表格挂载后自行消费。
@@ -129,6 +133,26 @@ export function requestCellFocus(id: string): void {
 export function consumeCellFocus(id: string): boolean {
   if (pendingCellFocus === id) {
     pendingCellFocus = null
+    return true
+  }
+  return false
+}
+
+/* ---------- Pending scroll (从反向链接跳到被引用的块) ---------- */
+
+/**
+ * 请求把某个块滚动到视野中央。
+ * 从反向链接跳进另一个页面时用:先记下请求,等目标块挂载后由它自己消费。
+ */
+let pendingScroll: { id: string } | null = null
+
+export function requestScrollTo(id: string): void {
+  pendingScroll = { id }
+}
+
+export function consumeScrollRequest(id: string): boolean {
+  if (pendingScroll && pendingScroll.id === id) {
+    pendingScroll = null
     return true
   }
   return false

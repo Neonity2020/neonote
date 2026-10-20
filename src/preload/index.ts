@@ -11,6 +11,7 @@ import type {
   DeepPartial,
   MovePageInput,
   NotionApi,
+  PageUpdateResult,
   SaveImageInput,
   SettingsApi,
   UpdateBlockInput,
@@ -20,7 +21,8 @@ import type {
 const api: NotionApi = {
   listPages: () => ipcRenderer.invoke('pages:list'),
   createPage: (input: CreatePageInput) => ipcRenderer.invoke('pages:create', input),
-  updatePage: (input: UpdatePageInput) => ipcRenderer.invoke('pages:update', input),
+  updatePage: (input: UpdatePageInput): Promise<PageUpdateResult> =>
+    ipcRenderer.invoke('pages:update', input),
   deletePage: (id: string) => ipcRenderer.invoke('pages:delete', id),
   movePage: (input: MovePageInput) => ipcRenderer.invoke('pages:move', input),
   resetWelcomePage: () => ipcRenderer.invoke('pages:reset-welcome'),
@@ -33,6 +35,8 @@ const api: NotionApi = {
     ipcRenderer.invoke('blocks:reorder', pageId, orderedIds),
 
   search: (query: string) => ipcRenderer.invoke('search:query', query),
+
+  getPageLinks: (pageId: string) => ipcRenderer.invoke('links:page-links', pageId),
 
   saveImage: (input: SaveImageInput) => ipcRenderer.invoke('images:save', input),
   pickImage: () => ipcRenderer.invoke('images:pick')

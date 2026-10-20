@@ -3,19 +3,31 @@ import { app } from 'electron'
 import { join } from 'path'
 import { randomUUID } from 'node:crypto'
 import type {
+  BacklinkRef,
   Block,
   BlockContent,
   BlockType,
   CreateBlockInput,
   CreatePageInput,
   MovePageInput,
+  OutgoingLink,
+  PageLinks,
   PageMeta,
+  PageUpdateResult,
   SearchResult,
   TableData,
   UpdateBlockInput,
   UpdatePageInput
 } from '@neonity/notion-clone-shared'
-import { tableToText, WELCOME_PAGE_TITLE } from '@neonity/notion-clone-shared'
+import {
+  buildPageTitleIndex,
+  lookupPageByTitle,
+  parseWikiLinks,
+  replaceWikiLinkTitle,
+  stripWikiLinkMarkers,
+  tableToText,
+  WELCOME_PAGE_TITLE
+} from '@neonity/notion-clone-shared'
 
 const POSITION_STEP = 1024
 
@@ -151,14 +163,68 @@ export function createPage(input: CreatePageInput): PageMeta {
   }
 }
 
-export function updatePage(input: UpdatePageInput): void {
+export function updatePage(input: UpdatePageInput): PageUpdateResult {
   const ts = now()
+  const updatedBlockIds: string[] = []
   if (input.title !== undefined) {
+    const row = db.prepare('SELECT title FROM pages WHERE id = ?').get(input.id) as
+      | { title: string }
+      | undefined
     db.prepare('UPDATE pages SET title = ?, updated_at = ? WHERE id = ?').run(input.title, ts, input.id)
+    // 标题变了,指向旧标题的双链要跟着改,否则链接会指向一个不存在的页面
+    if (row && row.title && row.title !== input.title) {
+      updatedBlockIds.push(...propagateTitleRename(input.id, row.title, input.title))
+    }
   }
   if (input.icon !== undefined) {
     db.prepare('UPDATE pages SET icon = ?, updated_at = ? WHERE id = ?').run(input.icon, ts, input.id)
   }
+  return { updatedBlockIds }
+}
+
+/**
+ * 页面改名后,同步改写全库指向旧标题的双链,返回被改写的块 id。
+ *
+ * 只有旧标题在库里唯一时才改写:存在同名页面时,`[[旧标题]]` 究竟指哪一个页面
+ * 是不确定的,贸然改写反而会把链接指错。不确定就保持原样 ——
+ * 链接要么落到同名页上,要么显示为"未创建",都由用户自己收拾。
+ */
+function propagateTitleRename(pageId: string, oldTitle: string, newTitle: string): string[] {
+  const dup = db.prepare('SELECT COUNT(*) AS c FROM pages WHERE title = ? AND id != ?').get(oldTitle, pageId) as {
+    c: number
+  }
+  if (dup.c > 0) return []
+
+  const rows = db.prepare("SELECT id, page_id, content FROM blocks WHERE instr(content, '[[') > 0").all() as unknown as Array<{
+    id: string
+    page_id: string
+    content: string
+  }>
+
+  const updated: string[] = []
+  const ts = now()
+  const touchedPages = new Set<string>()
+  for (const row of rows) {
+    let content: BlockContent
+    try {
+      content = JSON.parse(row.content) as BlockContent
+    } catch {
+      content = { text: row.content }
+    }
+    const text = content.text ?? ''
+    if (!text.includes(oldTitle)) continue
+    const next = replaceWikiLinkTitle(text, oldTitle, newTitle)
+    if (next === text) continue
+    db.prepare('UPDATE blocks SET content = ?, updated_at = ? WHERE id = ?').run(
+      JSON.stringify({ ...content, text: next }),
+      ts,
+      row.id
+    )
+    updated.push(row.id)
+    touchedPages.add(row.page_id)
+  }
+  for (const pid of touchedPages) touchPage(pid, ts)
+  return updated
 }
 
 export function deletePage(id: string): void {
@@ -428,6 +494,96 @@ export function search(query: string): SearchResult[] {
   }
 
   return results
+}
+
+// ---------- Wiki Links (双链) ----------
+
+/** 把一段文本压成单行摘要,用于反向链接列表 */
+function makeSnippet(text: string, max = 90): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat
+}
+
+/** 解析块 content 里的纯文本,坏数据按纯文本兜底(与 blockFromRow 一致) */
+function textOf(content: string): string {
+  try {
+    const parsed = JSON.parse(content) as BlockContent
+    return parsed.text ?? ''
+  } catch {
+    return content
+  }
+}
+
+/**
+ * 取页面的双向链接:出链 + 反向链接。
+ *
+ * 双链没有单独的表 —— `[[标题]]` 就是块正文里的一段纯文本。
+ * 这里在查询时解析正文并按标题解析目标页面,好处是链接的"真身"始终是正文,
+ * 不会出现索引和正文对不上的情况;代价是每次查询要扫一遍含 `[[` 的块,
+ * 对本地 SQLite 来说完全够用。
+ */
+export function getPageLinks(pageId: string): PageLinks {
+  const pages = listPages()
+  const target = pages.find((p) => p.id === pageId)
+  if (!target) return { outgoing: [], backlinks: [] }
+  const titleIndex = buildPageTitleIndex(pages)
+
+  // ---------- 出链:本页块里的双链 ----------
+  const outgoingMap = new Map<string, OutgoingLink>()
+  for (const block of listBlocks(pageId)) {
+    const text = block.content.text ?? ''
+    for (const link of parseWikiLinks(text)) {
+      const hit = lookupPageByTitle(titleIndex, link.title)
+      const existing = outgoingMap.get(link.title)
+      if (existing) {
+        if (!existing.blockIds.includes(block.id)) existing.blockIds.push(block.id)
+      } else {
+        outgoingMap.set(link.title, {
+          title: link.title,
+          pageId: hit?.id ?? null,
+          pageIcon: hit?.icon ?? null,
+          blockIds: [block.id]
+        })
+      }
+    }
+  }
+
+  // ---------- 反向链接:全库指向本页的块 ----------
+  const backlinks: BacklinkRef[] = []
+  const rows = db
+    .prepare(
+      `SELECT b.id AS block_id, b.page_id, b.content, p.title AS page_title, p.icon AS page_icon
+       FROM blocks b JOIN pages p ON p.id = b.page_id
+       WHERE instr(b.content, '[[') > 0
+       ORDER BY b.updated_at DESC`
+    )
+    .all() as unknown as Array<{
+    block_id: string
+    page_id: string
+    content: string
+    page_title: string
+    page_icon: string | null
+  }>
+
+  for (const row of rows) {
+    // 本页自己的链接在"出链"里已经列过,不重复算成反向链接
+    if (row.page_id === pageId) continue
+    const text = textOf(row.content)
+    if (!text) continue
+    const links = parseWikiLinks(text)
+    if (links.length === 0) continue
+    // 一段文字里只要有一条链接指向本页,整块就算一条反向链接
+    if (!links.some((l) => lookupPageByTitle(titleIndex, l.title)?.id === target.id)) continue
+    backlinks.push({
+      blockId: row.block_id,
+      pageId: row.page_id,
+      pageTitle: row.page_title || '无标题',
+      pageIcon: row.page_icon,
+      snippet: makeSnippet(stripWikiLinkMarkers(text))
+    })
+  }
+
+  return { outgoing: [...outgoingMap.values()], backlinks }
 }
 
 // ---------- Seed ----------
