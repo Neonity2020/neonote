@@ -16,7 +16,7 @@ import { createTableData, tableToText, createDatabaseData, databaseToText } from
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
 import { LinkPanel } from './LinkPanel'
-import newNoteWizardBackground from '@/assets/new-note-wizard-bg.png'
+import newNoteWizardBackground from '@/assets/new-note-wizard-bg.webp'
 
 interface SlashState {
   blockId: string
