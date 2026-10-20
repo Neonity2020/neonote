@@ -10,6 +10,7 @@ import {
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { FileText } from 'lucide-react'
 import { useStore } from '@/store'
+import { useSettings } from '@/settingsStore'
 import { filterBlockTypes, type BlockTypeMeta } from '@/lib/blockTypes'
 import { focusBlock, requestCellFocus, requestFocus, setBlockElementText } from '@/lib/caret'
 import { createTableData, tableToText, createDatabaseData, databaseToText } from '@neonity/notion-clone-shared'
@@ -44,7 +45,11 @@ export function Editor(): JSX.Element {
   const [slashIndex, setSlashIndex] = useState(0)
 
   const slashItems = useMemo(() => (slash ? filterBlockTypes(slash.filter) : []), [slash])
+  // The illustration only shows on a page that has not been written yet, and
+  // only when the user left it switched on.
+  const newPageBackground = useSettings((s) => s.settings.editor.newPageBackground)
   const showNewNoteBackground =
+    newPageBackground &&
     !blocksLoading &&
     !title.trim() &&
     blocks.length === 1 &&

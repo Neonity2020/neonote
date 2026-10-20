@@ -174,7 +174,7 @@ SELECT * FROM pages ORDER BY parent_id IS NOT NULL, position;
 ```
 key          value
 theme        "light"
-editor       {"fontSize":15,"contentWidth":"standard"}
+editor       {"fontSize":15,"contentWidth":"standard","newPageBackground":true}
 ai           {"model":null,"autoContext":true,"extraPrompt":""}
 ```
 

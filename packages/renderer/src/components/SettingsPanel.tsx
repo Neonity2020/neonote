@@ -237,6 +237,13 @@ function AppearanceSection(): JSX.Element {
           }))}
         />
       </Row>
+
+      <Row label="空白页背景图" hint="新建空白页面时,正文后面显示一张插画背景">
+        <Toggle
+          checked={settings.editor.newPageBackground}
+          onChange={(newPageBackground) => void update({ editor: { newPageBackground } })}
+        />
+      </Row>
     </div>
   )
 }
@@ -497,7 +504,7 @@ function DataSection(): JSX.Element {
 
       <Row
         label="恢复默认设置"
-        hint="会重置主题、字号与内容宽度、AI 偏好三项设置,不会删除任何页面或块"
+        hint="会重置主题、字号、内容宽度、背景图与 AI 偏好,不会删除任何页面或块"
       >
         {/* Two-step confirm, so that a destructive action is never a single click. */}
         <Button

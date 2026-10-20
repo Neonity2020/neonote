@@ -314,6 +314,7 @@ export interface AiSettings {
 export interface EditorSettings {
   fontSize: EditorFontSize
   contentWidth: ContentWidth
+  newPageBackground: boolean   // 空白页是否显示插画背景
 }
 
 export interface AppSettings {
@@ -324,7 +325,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
-  editor: { fontSize: 15, contentWidth: 'standard' },
+  editor: { fontSize: 15, contentWidth: 'standard', newPageBackground: true },
   ai: { model: null, autoContext: true, extraPrompt: '' }
 }
 ```

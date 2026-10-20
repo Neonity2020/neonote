@@ -63,6 +63,11 @@ export function sanitize(input: unknown): AppSettings {
     DEFAULT_SETTINGS.editor.contentWidth
   )
 
+  const newPageBackground =
+    typeof editor.newPageBackground === 'boolean'
+      ? editor.newPageBackground
+      : DEFAULT_SETTINGS.editor.newPageBackground
+
   const model =
     typeof ai.model === 'string' && ai.model.trim() ? ai.model.trim() : null
   const extraPrompt =
@@ -70,7 +75,7 @@ export function sanitize(input: unknown): AppSettings {
 
   return {
     theme: pickEnum<ThemeMode>(raw.theme, ['light', 'dark', 'system'], DEFAULT_SETTINGS.theme),
-    editor: { fontSize, contentWidth },
+    editor: { fontSize, contentWidth, newPageBackground },
     ai: {
       model,
       autoContext: typeof ai.autoContext === 'boolean' ? ai.autoContext : DEFAULT_SETTINGS.ai.autoContext,

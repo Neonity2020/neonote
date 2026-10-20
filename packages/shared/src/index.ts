@@ -448,6 +448,8 @@ export interface AiSettings {
 export interface EditorSettings {
   fontSize: EditorFontSize
   contentWidth: ContentWidth
+  /** Whether the decorative illustration is shown behind an empty page. */
+  newPageBackground: boolean
 }
 
 /** The full settings object: the theme, editor and AI sections. */
@@ -460,7 +462,7 @@ export interface AppSettings {
 /** The settings a fresh installation starts with. */
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
-  editor: { fontSize: 15, contentWidth: 'standard' },
+  editor: { fontSize: 15, contentWidth: 'standard', newPageBackground: true },
   ai: { model: null, autoContext: true, extraPrompt: '' }
 }
 
