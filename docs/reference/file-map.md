@@ -8,7 +8,7 @@
 
 | 文件 | 职责 | 关键导出 |
 | --- | --- | --- |
-| `src/index.ts` | 全部共享类型、常量、纯函数 | `BlockType`、`Block`、`PageMeta`、`AppSettings`、`AiApi`、`NotionApi`、`SettingsApi`、`DEFAULT_SETTINGS`、`createTableData`、`tableToText`、`WELCOME_PAGE_TITLE` |
+| `src/index.ts` | 全部共享类型、常量、纯函数 | `BlockType`、`Block`、`PageMeta`、`AppSettings`、`AiApi`、`NotionApi`、`SettingsApi`、`DEFAULT_SETTINGS`、`createTableData`、`tableToText`、`WELCOME_PAGE_TITLE`、`parseWikiLinks`、`replaceWikiLinkTitle`、`lookupPageByTitle` |
 
 > **唯一**被主进程和渲染进程同时 import 的地方。没有副作用，没有依赖。
 
@@ -19,7 +19,7 @@
 | 文件 | 职责 | 关键导出 |
 | --- | --- | --- |
 | `index.ts` | 入口：窗口创建、协议注册、IPC 路由、启动流程 | — |
-| `db.ts` | 全部 SQLite 读写。**唯一的数据出口** | `initDb`、`listPages`、`createPage`、`updatePage`、`deletePage`、`movePage`、`resetWelcomePage`、`listBlocks`、`createBlock`、`updateBlock`、`deleteBlock`、`reorderBlocks`、`search`、`listImageAssetIds`、`loadSettingsRaw`、`saveSettingsSection`、`clearSettings`、`countRows` |
+| `db.ts` | 全部 SQLite 读写。**唯一的数据出口** | `initDb`、`listPages`、`createPage`、`updatePage`、`deletePage`、`movePage`、`resetWelcomePage`、`listBlocks`、`createBlock`、`updateBlock`、`deleteBlock`、`reorderBlocks`、`search`、`getPageLinks`、`listImageAssetIds`、`loadSettingsRaw`、`saveSettingsSection`、`clearSettings`、`countRows` |
 | `assets.ts` | 图片存取、扩展名映射、GC、`nc-asset://` 协议实现 | `ASSET_SCHEME`、`MIME_BY_EXT`、`getAssetsDir`、`saveImage`、`pickImage`、`gcAssets` |
 | `settings.ts` | 设置校验、落库、广播、AppInfo | `sanitize`、`getSettings`、`updateSettings`、`resetSettings`、`getAppInfo`、`onSettingsChanged`、`registerSettings` |
 | `ai.ts` | Pi agent 会话、7 个笔记工具、事件转发、上下文注入 | `registerAi` |
@@ -58,7 +58,7 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `store.ts` | 笔记状态：页面、块、块级操作、400ms 防抖落库 |
+| `store.ts` | 笔记状态：页面、块、块级操作、400ms 防抖落库、链接版本号 |
 | `settingsStore.ts` | 设置状态：读、改、重置 |
 
 ### 工具
@@ -66,8 +66,9 @@
 | 文件 | 职责 |
 | --- | --- |
 | `lib/utils.ts` | `cn()`（clsx + tailwind-merge） |
-| `lib/caret.ts` | 光标偏移计算、焦点注册表、待处理焦点/单元格焦点 |
+| `lib/caret.ts` | 光标偏移计算、焦点注册表、待处理焦点/单元格焦点/滚动请求 |
 | `lib/blockTypes.tsx` | 12 种块的元数据、过滤、占位提示 |
+| `lib/wikiLink.ts` | 双链装饰器（把 `[[标题]]` 包成可点击 span）、`[[` 触发点查找、链接插入 |
 
 ### 组件
 
@@ -79,6 +80,8 @@
 | `TableBlock.tsx` | 表格：单元格编辑、键盘导航、增删行列工具条 |
 | `ImageBlock.tsx` | 图片：选择、删除、导航 |
 | `SlashMenu.tsx` | 斜杠命令菜单（纯展示） |
+| `LinkPicker.tsx` | 双链页面选择器（`[[` 触发，含「新建页面」项） |
+| `LinkPanel.tsx` | 页面底部的双向链接面板（反链 + 出链） |
 | `EmojiPicker.tsx` | 页面图标选择器（64 个 emoji） |
 | `AssistantPanel.tsx` | AI 对话面板：消息流、工具徽标、思考过程、发送/中断 |
 | `SettingsPanel.tsx` | 设置弹窗：外观 / AI / 数据 / 关于 四个分区 |

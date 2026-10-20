@@ -214,6 +214,50 @@ ORDER BY b.updated_at DESC LIMIT 30;
 
 ---
 
+## 双链
+
+**双链没有单独的表。** `[[页面标题]]` 就是块正文里的一段纯文本，
+出链和反链都是**查询时解析**出来的。
+
+```
+blocks.content.text = "详见 [[计划]] 这一页的排版"
+         ↓ 查询时解析
+出链:  计划 → pageId
+反链:  哪些块的正文里写了 [[本页标题]]
+```
+
+### 查询
+
+反链扫描所有含 `[[` 的块，用 `instr(content, '[[') > 0` 过滤：
+
+```sql
+SELECT b.id AS block_id, b.page_id, b.content, p.title AS page_title, p.icon AS page_icon
+FROM blocks b JOIN pages p ON p.id = b.page_id
+WHERE instr(b.content, '[[') > 0
+ORDER BY b.updated_at DESC
+```
+
+然后在 JS 里解析正文、按标题解析目标页面。同一块里有多条链接指向同一页面时，
+**只算一条反链**（用 `some()` 判断）。
+
+### 改名传播
+
+页面改名时，主进程会扫一遍含 `[[` 的块，把指向旧标题的链接改写成新标题，
+并返回被改写的块 id（`PageUpdateResult.updatedBlockIds`），
+前端据此把受影响的块拉回本地。
+
+**只有旧标题在库里唯一时才改写。** 存在同名页面时，`[[旧标题]]` 究竟指哪一个是不确定的，
+贸然改写反而会把链接指错——这种情况下保持原样，由用户自己消歧。
+
+### 为什么这样设计
+
+正文即索引意味着**链接只有一份真身**，永远不会出现"索引和正文对不上"。
+代价是每次查询要现算，对本地 SQLite 来说完全够用。
+
+详见 [ADR-0007](../adr/0007-wiki-links-as-plain-text.md)。
+
+---
+
 ## 种子数据
 
 数据库为空时（`pages` 表 count 为 0），自动创建一个欢迎页并写入 **16 个示例块**，
@@ -254,3 +298,5 @@ ORDER BY b.updated_at DESC LIMIT 30;
 - [ADR-0001](../adr/0001-local-first-sqlite.md) —— 为什么用本地 SQLite
 - [ADR-0003](../adr/0003-json-block-content.md) —— 为什么 content 用 JSON
 - [ADR-0005](../adr/0005-fractional-position-ordering.md) —— 为什么要浮点位置
+- [ADR-0007](../adr/0007-wiki-links-as-plain-text.md) —— 为什么双链没有单独的表
+- [双链（Wiki Link）](../user-guide/links.md) —— `[[]]` 语法与反向链接

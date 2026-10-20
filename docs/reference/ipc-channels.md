@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `pages:list` | — | `PageMeta[]` |
 | `pages:create` | `CreatePageInput` | `PageMeta` |
-| `pages:update` | `UpdatePageInput` | `void` |
+| `pages:update` | `UpdatePageInput` | `PageUpdateResult` |
 | `pages:delete` | `id: string` | `void` |
 | `pages:move` | `MovePageInput` | `PageMeta[]` |
 | `pages:reset-welcome` | — | `PageMeta` |
@@ -32,6 +32,12 @@
 | 通道 | 参数 | 返回 |
 | --- | --- | --- |
 | `search:query` | `query: string` | `SearchResult[]` |
+
+### 双链
+
+| 通道 | 参数 | 返回 |
+| --- | --- | --- |
+| `links:page-links` | `pageId: string` | `PageLinks` |
 
 ### 图片
 
@@ -97,6 +103,7 @@
 | 删块 | `blocks:delete` |
 | 整层重排 | `blocks:reorder` |
 | 搜索 | `search:query` |
+| 查页面的出链与反链 | `links:page-links` |
 | 保存粘贴的图片 | `images:save` |
 | 弹出文件选择器 | `images:pick` |
 | 读设置 | `settings:get` |

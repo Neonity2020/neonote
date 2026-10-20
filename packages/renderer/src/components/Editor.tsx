@@ -15,6 +15,7 @@ import { focusBlock, requestCellFocus, requestFocus, setBlockElementText } from 
 import { createTableData, tableToText } from '@neonity/notion-clone-shared'
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
+import { LinkPanel } from './LinkPanel'
 
 interface SlashState {
   blockId: string
@@ -215,6 +216,9 @@ export function Editor(): JSX.Element {
           </SortableContext>
         </DndContext>
       )}
+
+      {/* 双向链接:谁引用了本页、本页引用了谁 */}
+      {currentPageId && <LinkPanel pageId={currentPageId} />}
 
       <div className="min-h-[30vh] cursor-text" onClick={appendAtEnd} />
     </div>

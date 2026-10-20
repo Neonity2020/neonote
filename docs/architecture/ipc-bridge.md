@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld('api', api)
 
 | 全局变量 | 类型 | 职责 |
 | --- | --- | --- |
-| `window.api` | `NotionApi` | 页面、块、搜索、图片 |
+| `window.api` | `NotionApi` | 页面、块、搜索、双链、图片 |
 | `window.ai` | `AiApi` | AI 会话与事件订阅 |
 | `window.settings` | `SettingsApi` | 设置读写与应用信息 |
 
@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('api', api)
 | `pages:` | 页面 | `pages:list`、`pages:create`、`pages:move` |
 | `blocks:` | 块 | `blocks:list`、`blocks:update`、`blocks:reorder` |
 | `search:` | 搜索 | `search:query` |
+| `links:` | 双链 | `links:page-links` |
 | `images:` | 图片 | `images:save`、`images:pick` |
 | `settings:` | 设置 | `settings:get`、`settings:set` |
 | `ai:` | AI | `ai:send`、`ai:event` |
@@ -75,7 +76,7 @@ contextBridge.exposeInMainWorld('api', api)
 | --- | --- | --- | --- |
 | `pages:list` | — | `PageMeta[]` | 全部页面，按顶层优先 + position 排序 |
 | `pages:create` | `CreatePageInput` | `PageMeta` | 新建页面，自动带一个空正文块 |
-| `pages:update` | `UpdatePageInput` | `void` | 改标题 / 图标 |
+| `pages:update` | `UpdatePageInput` | `PageUpdateResult` | 改标题 / 图标；标题变更时返回被改写的块 id |
 | `pages:delete` | `id: string` | `void` | 级联删除页面及其子页面、块 |
 | `pages:move` | `MovePageInput` | `PageMeta[]` | 改父级 / 同级重排，返回刷新后的完整列表 |
 | `pages:reset-welcome` | — | `PageMeta` | 重新灌入欢迎页示例块 |
@@ -85,6 +86,7 @@ contextBridge.exposeInMainWorld('api', api)
 | `blocks:delete` | `id: string` | `void` | 删除块 |
 | `blocks:reorder` | `pageId, orderedIds[]` | `void` | 整层重排，单事务 |
 | `search:query` | `query: string` | `SearchResult[]` | 标题 + 正文搜索 |
+| `links:page-links` | `pageId: string` | `PageLinks` | 页面的出链与反链 |
 | `images:save` | `SaveImageInput` | `SavedImage` | 保存图片数据（粘贴用） |
 | `images:pick` | — | `SavedImage \| null` | 打开系统文件选择器 |
 

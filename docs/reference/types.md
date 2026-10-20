@@ -96,6 +96,70 @@ export interface SearchResult {
 
 ---
 
+## 双链（Wiki Link）
+
+```ts
+/** 一条双链在原文中的位置与语义 */
+export interface WikiLinkMatch {
+  start: number      // 匹配起始下标(指向第一个 `[`)
+  end: number        // 匹配结束下标(指向最后一个 `]` 之后)
+  title: string      // 链接指向的页面标题(已去掉别名)
+  alias: string | null  // 显示别名;没写别名时为 null
+}
+
+/** 本页指向其他页面的链接 */
+export interface OutgoingLink {
+  title: string
+  pageId: string | null      // 目标不存在时为 null(链接处于"未创建"状态)
+  pageIcon: string | null
+  blockIds: string[]         // 引用这条链接的块 id(同一目标被引用多次时会有多个)
+}
+
+/** 一条反向链接:某个块引用了目标页面 */
+export interface BacklinkRef {
+  blockId: string
+  pageId: string
+  pageTitle: string
+  pageIcon: string | null
+  snippet: string            // 引用所在块的文本摘要(已去掉双链标记)
+}
+
+/** 一个页面的双向链接视图 */
+export interface PageLinks {
+  outgoing: OutgoingLink[]
+  backlinks: BacklinkRef[]
+}
+
+/** 页面改名后,哪些块里的双链被同步改写了 */
+export interface PageUpdateResult {
+  updatedBlockIds: string[]
+}
+```
+
+### 共享的双链工具函数
+
+```ts
+export const WIKI_LINK_SOURCE: string
+
+export function parseWikiLinks(text: string): WikiLinkMatch[]
+export function extractWikiLinkTitles(text: string): string[]
+export function stripWikiLinkMarkers(text: string): string
+export function replaceWikiLinkTitle(text: string, oldTitle: string, newTitle: string): string
+export function buildPageTitleIndex<T extends { id: string; title: string }>(
+  pages: T[]
+): PageTitleIndex<T>
+export function lookupPageByTitle<T>(index: PageTitleIndex<T>, title: string): T | undefined
+export function resolvePageByTitle<T extends { id: string; title: string }>(
+  pages: T[],
+  title: string
+): T | undefined
+```
+
+> 这些函数住在 **`@neonity/notion-clone-shared`** 包里，主进程与渲染进程共用同一份。
+> 保证"界面上显示能点开"和"面板里统计成反链"永远指向同一个页面。
+
+---
+
 ## 输入类型
 
 ```ts
@@ -284,7 +348,7 @@ export interface SettingsApi {
 export interface NotionApi {
   listPages(): Promise<PageMeta[]>
   createPage(input: CreatePageInput): Promise<PageMeta>
-  updatePage(input: UpdatePageInput): Promise<void>
+  updatePage(input: UpdatePageInput): Promise<PageUpdateResult>
   deletePage(id: string): Promise<void>
   movePage(input: MovePageInput): Promise<PageMeta[]>     // 返回刷新后的完整列表
   resetWelcomePage(): Promise<PageMeta>
@@ -294,6 +358,8 @@ export interface NotionApi {
   deleteBlock(id: string): Promise<void>
   reorderBlocks(pageId: string, orderedIds: string[]): Promise<void>
   search(query: string): Promise<SearchResult[]>
+  /** 取页面的双向链接:出链 + 反向链接 */
+  getPageLinks(pageId: string): Promise<PageLinks>
   saveImage(input: SaveImageInput): Promise<SavedImage>
   pickImage(): Promise<SavedImage | null>
 }

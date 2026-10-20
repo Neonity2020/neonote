@@ -106,6 +106,38 @@
   background: hsl(var(--accent));
 }
 
+/* ---------- Wiki links (双链) ---------- */
+
+/* 正文里的 [[标题]] 被装饰器包进这个 span;方括号保留可见,正文因此始终与数据库一字不差 */
+.wiki-link {
+  color: hsl(var(--primary));
+  cursor: pointer;
+  border-radius: 3px;
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--primary) / 0.35);
+  text-underline-offset: 3px;
+  transition:
+    background-color 120ms ease,
+    text-decoration-color 120ms ease;
+}
+
+.wiki-link:hover {
+  background-color: hsl(var(--accent) / 0.7);
+  text-decoration-color: hsl(var(--primary));
+}
+
+/* 指向的页面还没创建:点一下会新建 */
+.wiki-link-missing {
+  color: hsl(var(--muted-foreground));
+  text-decoration-style: dashed;
+  text-decoration-color: hsl(var(--muted-foreground) / 0.45);
+}
+
+.wiki-link-missing:hover {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--accent) / 0.7);
+}
+
 /* ---------- Scrollbars ---------- */
 
 ::-webkit-scrollbar {

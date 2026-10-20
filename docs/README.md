@@ -28,6 +28,7 @@
 | [页面与层级](user-guide/pages.md) | 页面树、拖拽改层级、折叠、删除级联 |
 | [搜索](user-guide/search.md) | 匹配范围、结果规则、命中上限 |
 | [图片与表格](user-guide/media-and-tables.md) | 图片插入/粘贴、表格编辑与导航 |
+| [双链](user-guide/links.md) | `[[页面]]` 语法、反向链接面板、改名传播 |
 | [AI 助手](user-guide/ai-assistant.md) | 模型选择、页面上下文、工具能力 |
 | [设置](user-guide/settings.md) | 外观 / AI 助手 / 数据与存储 / 关于 |
 | [快捷键速查](user-guide/shortcuts.md) | 全部键盘操作一览 |
@@ -82,6 +83,7 @@
 | [0004](adr/0004-pi-agent-sandbox.md) | AI 走 Pi SDK 并禁用内置工具 |
 | [0005](adr/0005-fractional-position-ordering.md) | 分数位置排序（position） |
 | [0006](adr/0006-extract-renderer-package.md) | 前端抽取为可发布的 npm 包 |
+| [0007](adr/0007-wiki-links-as-plain-text.md) | 双链以纯文本形式存在于正文 |
 
 ---
 
@@ -121,6 +123,7 @@ docs/
 │   ├── pages.md
 │   ├── search.md
 │   ├── media-and-tables.md
+│   ├── links.md
 │   ├── ai-assistant.md
 │   ├── settings.md
 │   └── shortcuts.md
@@ -150,5 +153,6 @@ docs/
     ├── 0003-json-block-content.md
     ├── 0004-pi-agent-sandbox.md
     ├── 0005-fractional-position-ordering.md
-    └── 0006-extract-renderer-package.md
+    ├── 0006-extract-renderer-package.md
+    └── 0007-wiki-links-as-plain-text.md
 ```

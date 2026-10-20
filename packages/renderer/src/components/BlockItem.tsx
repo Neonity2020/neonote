@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Plus } from 'lucide-react'
@@ -8,13 +8,22 @@ import { cn } from '@/lib/utils'
 import { placeholderFor, type BlockTypeMeta } from '@/lib/blockTypes'
 import {
   consumePendingFocus,
+  consumeScrollRequest,
   focusBlock,
   focusSoon,
   getCaretOffset,
   registerBlockElement,
   requestFocus
 } from '@/lib/caret'
+import {
+  applyWikiLink,
+  decorateWikiLinks,
+  findLinkTrigger,
+  findWikiLinkElement,
+  getLinkResolver
+} from '@/lib/wikiLink'
 import { SlashMenu } from './SlashMenu'
+import { LinkPicker, type LinkPickerItem } from './LinkPicker'
 import { ImageBlock } from './ImageBlock'
 import { TableBlock } from './TableBlock'
 
@@ -70,9 +79,35 @@ export function BlockItem({
   const setBlockType = useStore((s) => s.setBlockType)
   const setBlockChecked = useStore((s) => s.setBlockChecked)
   const insertBlockAfter = useStore((s) => s.insertBlockAfter)
+  const selectPage = useStore((s) => s.selectPage)
+  const createPage = useStore((s) => s.createPage)
+  const pages = useStore((s) => s.pages)
 
   const text = block.content.text ?? ''
   const elRef = useRef<HTMLElement | null>(null)
+
+  /* ---------- 双链 ---------- */
+
+  /** 标题 → 目标页面。pages 引用不变时复用同一个解析函数 */
+  const resolveLink = useMemo(() => getLinkResolver(pages), [pages])
+  /** 双链选择器:null 表示没在输入 [[ */
+  const [linkPicker, setLinkPicker] = useState<{ filter: string } | null>(null)
+  const [linkIndex, setLinkIndex] = useState(0)
+
+  const linkItems = useMemo<LinkPickerItem[]>(() => {
+    if (!linkPicker) return []
+    const f = linkPicker.filter.trim()
+    const lower = f.toLowerCase()
+    const matched = pages.filter((p) => p.title && (!lower || p.title.toLowerCase().includes(lower)))
+    const items: LinkPickerItem[] = matched
+      .slice(0, 20)
+      .map((p) => ({ kind: 'page' as const, title: p.title, page: p }))
+    // 没有完全同名的页面时,提供"新建这个标题"一项
+    if (f && !pages.some((p) => p.title.trim().toLowerCase() === lower)) {
+      items.push({ kind: 'create', title: f, page: null })
+    }
+    return items
+  }, [linkPicker, pages])
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: block.id
@@ -96,16 +131,27 @@ export function BlockItem({
   // Sync external text changes (merge from other blocks) when not focused
   useEffect(() => {
     const el = elRef.current
-    if (el && el.isContentEditable && document.activeElement !== el && (el.textContent ?? '') !== text) {
+    if (!el || !el.isContentEditable) return
+    // 正在编辑的块不能碰:改了会打断光标
+    if (document.activeElement === el) return
+    if ((el.textContent ?? '') !== text) {
       el.textContent = text
     }
-  }, [text])
+    // 把正文里的 [[双链]] 装饰成可点击的链接
+    decorateWikiLinks(el, resolveLink)
+  }, [text, resolveLink])
 
   // Apply pending focus request on mount (newly inserted blocks)
   useEffect(() => {
     const pending = consumePendingFocus(block.id)
     if (pending !== undefined) {
       focusBlock(block.id, pending ?? undefined)
+    }
+    // 从反向链接跳进来时,滚动到被引用的那一块
+    if (consumeScrollRequest(block.id)) {
+      requestAnimationFrame(() => {
+        elRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -184,7 +230,78 @@ export function BlockItem({
     void state.removeBlock(block.id).then(() => focusSoon(prev.id, prevText.length))
   }
 
+  /* ---------- 双链交互 ---------- */
+
+  /** 点开一个链接:页面存在就跳过去,不存在就按标题建一个 */
+  const openLink = async (title: string): Promise<void> => {
+    const target = resolveLink(title)
+    if (target.pageId) {
+      await selectPage(target.pageId)
+      return
+    }
+    await createPage(null, title)
+  }
+
+  /** 点击正文里的双链 */
+  const handleLinkMouseDown = (e: React.MouseEvent<HTMLElement>): void => {
+    const link = findWikiLinkElement(e.target)
+    if (!link) return
+    const title = link.dataset.wikiTitle ?? ''
+    if (!title) return
+    // 不让浏览器把光标放进去,直接跳走
+    e.preventDefault()
+    e.stopPropagation()
+    void openLink(title)
+  }
+
+  /** 选中一个目标后把 [[标题]] 写进正文 */
+  const applyLink = (item: LinkPickerItem): void => {
+    setLinkPicker(null)
+    const result = applyWikiLink(block.id, item.title)
+    if (!result) return
+    updateBlockLocal(block.id, { ...block.content, text: result.text })
+    // 立刻补上链接样式,不用等失焦
+    const el = elRef.current
+    if (el) decorateWikiLinks(el, resolveLink)
+  }
+
+  /** 选择器打开时的键盘操作 */
+  const handleLinkKey = (e: React.KeyboardEvent): boolean => {
+    if (!linkPicker) return false
+    if (linkItems.length === 0) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setLinkPicker(null)
+        return true
+      }
+      return false
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setLinkIndex((i) => (i + 1) % linkItems.length)
+      return true
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setLinkIndex((i) => (i - 1 + linkItems.length) % linkItems.length)
+      return true
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      const item = linkItems[linkIndex]
+      if (item) applyLink(item)
+      return true
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setLinkPicker(null)
+      return true
+    }
+    return false
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>): void => {
+    if (linkPicker && handleLinkKey(e)) return
     if (slashOpen && onSlashKey(e)) return
 
     const el = e.currentTarget
@@ -247,6 +364,16 @@ export function BlockItem({
     } else if (slashOpen) {
       onSlashChange(block.id, null)
     }
+
+    // 双链:光标前出现还没闭合的 [[ 就弹出页面选择器
+    const trigger = findLinkTrigger(currentText, getCaretOffset(el))
+    if (trigger) {
+      if (slashOpen) onSlashChange(block.id, null)
+      setLinkPicker({ filter: trigger.filter })
+      setLinkIndex(0)
+    } else if (linkPicker) {
+      setLinkPicker(null)
+    }
   }
 
   const pasteImageFile = async (file: File, el: HTMLElement): Promise<void> => {
@@ -297,6 +424,13 @@ export function BlockItem({
     })
   }
 
+  /** 失焦后把双链补上样式 */
+  const handleBlur = (): void => {
+    const el = elRef.current
+    if (!el || !el.isContentEditable) return
+    decorateWikiLinks(el, resolveLink)
+  }
+
   const editableProps = {
     ref: registerRef,
     contentEditable: true,
@@ -305,7 +439,9 @@ export function BlockItem({
     'data-placeholder': placeholderFor(block.type),
     onInput: handleInput,
     onKeyDown: handleKeyDown,
-    onPaste: handlePaste
+    onPaste: handlePaste,
+    onMouseDown: handleLinkMouseDown,
+    onBlur: handleBlur
   } as const
 
   const renderContent = (): JSX.Element => {
@@ -474,6 +610,14 @@ export function BlockItem({
       <div className="relative min-w-0 py-0.5">{renderContent()}</div>
       {slashOpen && (
         <SlashMenu items={slashItems} selectedIndex={slashIndex} onSelect={onSlashSelect} onHover={onSlashHover} />
+      )}
+      {linkPicker && (
+        <LinkPicker
+          items={linkItems}
+          selectedIndex={linkIndex}
+          onSelect={applyLink}
+          onHover={setLinkIndex}
+        />
       )}
     </div>
   )

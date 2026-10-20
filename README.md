@@ -34,6 +34,7 @@ npm run dev
 ## 功能
 
 - **块编辑器** —— 12 种块类型，斜杠命令菜单，Markdown 快捷输入（`# `、`- `、`[] `…）
+- **双链** —— 正文写 `[[页面标题]]` 即可互链，页面底部列出「谁引用了我」，改名自动同步链接
 - **页面树** —— 无限层级，拖拽同时支持排序和改变父子关系
 - **表格** —— 纯文本行列数据，键盘导航，可被搜索和 AI 读取
 - **图片** —— 本地存储，任意文本块 `Ctrl+V` 直接粘贴
@@ -78,7 +79,8 @@ npm run dev
 | --- | --- |
 | [快速开始](docs/getting-started/index.md) | 安装、运行、打包 |
 | [功能巡览](docs/getting-started/quick-tour.md) | 5 分钟走一遍 |
-| [用户指南](docs/user-guide/editor.md) | 编辑器、页面、搜索、表格、AI、快捷键 |
+| [用户指南](docs/user-guide/editor.md) | 编辑器、页面、搜索、表格、双链、AI、快捷键 |
+| [双链（Wiki Link）](docs/user-guide/links.md) | `[[页面]]` 语法与反向链接 |
 | [架构总览](docs/architecture/overview.md) | 进程模型、数据流、分层 |
 | [数据模型](docs/architecture/data-model.md) | SQLite 表结构与位置策略 |
 | [开发环境](docs/development/setup.md) | 目录结构、调试、扩展指引 |

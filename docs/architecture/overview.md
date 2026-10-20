@@ -211,5 +211,6 @@ app.whenReady()
 - [IPC 桥接](ipc-bridge.md) —— 进程间通信设计
 - [状态管理](state-management.md) —— 前端状态与落库时序
 - [资源管线](assets.md) —— 图片的完整生命周期
+- [双链（Wiki Link）](../user-guide/links.md) —— `[[]]` 语法、反链面板、改名传播
 - [Pi SDK 集成](../ai/integration.md) —— AI 会话的生命周期
 - [文件地图](../reference/file-map.md) —— 每个文件负责什么
