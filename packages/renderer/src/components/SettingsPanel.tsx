@@ -188,7 +188,10 @@ function Toggle({
     >
       <span
         className={cn(
-          'absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform',
+          // The knob is anchored to the left edge of the track. Without an
+          // explicit `left` its static position depends on the button's text
+          // alignment, which would push it out of the track.
+          'absolute left-0 top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform',
           checked ? 'translate-x-[18px]' : 'translate-x-0.5'
         )}
       />
