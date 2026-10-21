@@ -1,0 +1,7 @@
+# Copy to .dev.vars (gitignored) and fill in real values.
+# Local dev DB: run `turso dev` in another terminal (HTTP sqld on 127.0.0.1:8080),
+# or point TURSO_DATABASE_URL at a real remote Turso database.
+TURSO_DATABASE_URL=http://127.0.0.1:8080
+TURSO_AUTH_TOKEN=
+BETTER_AUTH_SECRET=replace-with-openssl-rand-base64-32
+BETTER_AUTH_URL=http://localhost:3000
