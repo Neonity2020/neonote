@@ -18,6 +18,7 @@ export type BlockType =
   | 'code'
   | 'divider'
   | 'image'
+  | 'audio'
   | 'table'
   | 'database'
 
@@ -35,7 +36,7 @@ export interface TableData {
 export interface BlockContent {
   text?: string
   checked?: boolean
-  /** Image block: asset URL (nc-asset://asset/<id>) */
+  /** Image or audio block: asset URL or remote media URL. */
   src?: string
   /** Image caption, also mirrored to text for search and AI context. */
   caption?: string

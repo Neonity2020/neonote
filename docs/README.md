@@ -24,7 +24,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [块编辑器](user-guide/editor.md) | 输入、拆分、合并、拖拽、保存机制 |
-| [块类型参考](user-guide/blocks.md) | 13 种块类型 + Markdown 快捷输入对照 |
+| [块类型参考](user-guide/blocks.md) | 14 种块类型 + Markdown 快捷输入对照 |
 | [页面与层级](user-guide/pages.md) | 页面树、拖拽改层级、折叠、删除级联 |
 | [搜索](user-guide/search.md) | 匹配范围、结果规则、命中上限 |
 | [图片与表格](user-guide/media-and-tables.md) | 图片插入/粘贴、表格编辑与导航 |

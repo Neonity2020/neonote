@@ -107,7 +107,7 @@ AI 能调用的全部工具。共 7 个，分两类：**读**（3 个：`notes_l
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `type` | enum | 应用支持的 13 种块类型里的 11 种（**不含 `image` 与 `database`**，见下方说明） |
+| `type` | enum | 应用支持的 14 种块类型里的 11 种（**不含 `image`、`audio` 与 `database`**，见下方说明） |
 | `text` | string | 块文本，`divider` 可省略 |
 | `checked` | boolean | 仅 `todo` 块：是否勾选 |
 | `table` | string[][] | 仅 `table` 块：二维数组，第一行作表头 |

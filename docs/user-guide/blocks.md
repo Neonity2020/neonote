@@ -1,6 +1,6 @@
 # 块类型参考
 
-共 13 种块类型。类型定义在 `packages/shared/src/index.ts:9`，渲染逻辑在
+共 14 种块类型。类型定义在 `packages/shared/src/index.ts:9`，渲染逻辑在
 `packages/renderer/src/components/BlockItem.tsx:515`。
 
 ---
@@ -20,6 +20,7 @@
 | `code` | 代码块 | 等宽字体 textarea | ✅ | 代码… |
 | `divider` | 分割线 | 水平线 | ❌ | — |
 | `image` | 图片 | 本地图片 | ❌ | — |
+| `audio` | 音频 | 嵌入 http(s) 音频链接并播放 | ❌ | 音频链接 |
 | `table` | 表格 | 行列数据 | ✅（摘要） | — |
 | `database` | 数据库 | 属性 + 记录表格 | ✅（摘要） | — |
 
@@ -74,6 +75,13 @@
 ### 图片 `image`
 
 详见 [图片与表格](media-and-tables.md)。
+
+### 音频 `audio`
+
+- 粘贴一个可直接访问的 http(s) 音频链接（如 `.mp3`），用原生 `<audio>` 播放器播放。
+- 链接存在 `content.src`，同时镜像到 `content.text`，能被搜索命中。
+- 「更换链接」重新进入编辑；`Esc` 取消保留原链接。
+- 与图片/表格一样是**无文本块**：Backspace 不会把上一块文本合并进来，只移动焦点。
 
 ### 表格 `table`
 

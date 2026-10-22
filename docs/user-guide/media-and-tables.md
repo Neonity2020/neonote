@@ -138,6 +138,6 @@
 
 ## 相关文档
 
-- [块类型参考](blocks.md) —— 13 种块类型总览
+- [块类型参考](blocks.md) —— 14 种块类型总览
 - [资源管线](../architecture/assets.md) —— 图片存储与 GC 机制
 - [数据模型](../architecture/data-model.md) —— 表格在数据库里怎么存

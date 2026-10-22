@@ -67,7 +67,7 @@
 | --- | --- |
 | `lib/utils.ts` | `cn()`（clsx + tailwind-merge） |
 | `lib/caret.ts` | 光标偏移计算、焦点注册表、待处理焦点/单元格焦点/滚动请求 |
-| `lib/blockTypes.tsx` | 13 种块的元数据、过滤、占位提示 |
+| `lib/blockTypes.tsx` | 14 种块的元数据、过滤、占位提示 |
 | `lib/wikiLink.ts` | 双链装饰器（把 `[[标题]]` 包成可点击 span）、`[[` 触发点查找、链接插入 |
 
 ### 组件

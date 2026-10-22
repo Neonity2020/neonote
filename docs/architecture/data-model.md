@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS settings (
 | `pages` | `created_at` / `updated_at` | INTEGER | 毫秒时间戳 |
 | `blocks` | `id` | TEXT PK | UUID v4 |
 | | `page_id` | TEXT FK | 所属页面，`ON DELETE CASCADE` |
-| | `type` | TEXT | 13 种块类型之一 |
+| | `type` | TEXT | 14 种块类型之一 |
 | | `content` | TEXT | **JSON 字符串**，见下文 |
 | `settings` | `key` | TEXT PK | 分区名：`theme` / `editor` / `ai` |
 | | `value` | TEXT | JSON 字符串 |
@@ -269,7 +269,7 @@ ORDER BY b.updated_at DESC
 ## 种子数据
 
 数据库为空时（`pages` 表 count 为 0），自动创建一个欢迎页并写入 **16 个示例块**，
-覆盖 13 种块类型中的 10 种（不含 `heading3`、`image` 与 `database`）。
+覆盖 14 种块类型中的 10 种（不含 `heading3`、`image` 与 `database`）。
 
 **恢复示例内容**（`resetWelcomePage`）会：
 

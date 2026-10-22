@@ -25,6 +25,7 @@ import {
 import { SlashMenu } from './SlashMenu'
 import { LinkPicker, type LinkPickerItem } from './LinkPicker'
 import { ImageBlock } from './ImageBlock'
+import { AudioBlock } from './AudioBlock'
 import { TableBlock } from './TableBlock'
 import { DatabaseBlock } from './DatabaseBlock'
 
@@ -244,7 +245,7 @@ export function BlockItem({
   }
 
   // Backspace at offset 0 follows Notion's merge rules: an empty list item becomes a paragraph, a
-  // divider above is removed, an image/table neighbour only receives the focus, and otherwise the
+  // divider above is removed, an image/audio/table neighbour only receives the focus, and otherwise the
   // text is merged into the previous block.
   const handleBackspace = (e: React.KeyboardEvent, el: HTMLElement): void => {
     const fullText = el.textContent ?? ''
@@ -274,7 +275,7 @@ export function BlockItem({
       return
     }
 
-    if (prev.type === 'image' || prev.type === 'table' || prev.type === 'database') {
+    if (prev.type === 'image' || prev.type === 'audio' || prev.type === 'table' || prev.type === 'database') {
       // Text cannot be merged into an image/table block, so only the focus moves.
       focusBlock(prev.id)
       return
@@ -617,6 +618,8 @@ export function BlockItem({
         )
       case 'image':
         return <ImageBlock block={block} registerRef={registerRef} getNeighbors={getNeighbors} />
+      case 'audio':
+        return <AudioBlock block={block} registerRef={registerRef} getNeighbors={getNeighbors} />
       case 'table':
         return <TableBlock block={block} registerRef={registerRef} getNeighbors={getNeighbors} />
       case 'database':

@@ -13,7 +13,7 @@ export type BlockType =
   | 'quote' | 'code' | 'divider' | 'image' | 'table' | 'database'
 ```
 
-13 种。详细行为见 [块类型参考](../user-guide/blocks.md)。
+14 种。详细行为见 [块类型参考](../user-guide/blocks.md)。
 
 ---
 

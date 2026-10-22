@@ -5,6 +5,7 @@ import {
   Heading2,
   Heading3,
   Image,
+  Music2,
   List,
   ListOrdered,
   Minus,
@@ -42,6 +43,7 @@ export const BLOCK_TYPE_ITEMS: BlockTypeMeta[] = [
   { type: 'quote', label: '引用', description: '引用或强调文字', keywords: 'quote blockquote yy yin', icon: Quote },
   { type: 'code', label: '代码块', description: '等宽字体代码片段', keywords: 'code pre dm daima', icon: Code },
   { type: 'image', label: '图片', description: '插入本地图片或直接粘贴', keywords: 'image picture img photo tp tupian', icon: Image },
+  { type: 'audio', label: '音频', description: '嵌入音频链接并播放', keywords: 'audio music sound mp3 yinpin yp yinyue', icon: Music2 },
   { type: 'table', label: '表格', description: '简单的行列数据表', keywords: 'table grid biaoge bg bg2 liebiao', icon: Table2 },
   { type: 'divider', label: '分割线', description: '水平分隔线', keywords: 'divider hr fgx line', icon: Minus }
 ]
@@ -81,6 +83,8 @@ export function placeholderFor(type: BlockType): string {
       return '引用'
     case 'image':
       return '图片'
+    case 'audio':
+      return '音频链接'
     default:
       return "输入正文,按 '/' 唤起命令菜单"
   }
