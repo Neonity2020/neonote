@@ -29,7 +29,8 @@ web/
 │   │   ├── queries.ts      # 纯服务端数据访问（drizzle），严禁被客户端 import
 │   │   ├── pages.ts        # server fns：页面树 / 欢迎页种子 / 搜索 / wiki 双链
 │   │   ├── blocks.ts       # server fns：块 CRUD / 重排
-│   │   └── assets.ts       # server fn：图片上传（base64 存库）
+│   │   ├── assets.ts       # server fn：图片校验与上传
+│   │   └── r2.ts           # Cloudflare R2 读写与公开 URL
 │   ├── components/         # 桌面版组件复刻：Sidebar / Editor / BlockItem / TableBlock / …
 │   │   ├── App.tsx         # 桌面版 App 去掉 AI 助手入口
 │   │   └── ui/             # shadcn 风格基础组件（与桌面版一致）
@@ -65,8 +66,9 @@ Web 特有的「账号」分区（修改密码，走 better-auth `changePassword
 
 `page` / `block` 复刻桌面版 SQLite 表结构（JSON content 单列、1024 间隔的小数 position、
 wiki 链接改写传播、欢迎页种子），并增加 `user_id` 外键做每用户隔离；`block.user_id`
-冗余一列，让搜索和反链扫描不必 join 判权属。图片资产（桌面版存本地文件）在 Web 版
-存为 `asset` 表的 base64，经 `/api/asset/$id` 路由回源（仅本人可读，上限约 2MB）。
+冗余一列，让搜索和反链扫描不必 join 判权属。新上传的图片写入 Cloudflare R2，`asset`
+表只保存对象 key 与权属信息；旧版 base64 图片继续兼容读取。未配置公开域名时经
+`/api/asset/$id` 登录态路由回源，配置 `R2_PUBLIC_URL` 后直接保存图床 URL。单图上限 10MB。
 
 首次进入工作区时按用户种出「欢迎使用 Notion Clone」示例页（与桌面版首启一致）。
 
@@ -78,6 +80,7 @@ wiki 链接改写传播、欢迎页种子），并增加 `user_id` 外键做每�
 | `TURSO_AUTH_TOKEN` | Turso 访问令牌 | `.dev.vars` | `wrangler secret put` |
 | `BETTER_AUTH_SECRET` | better-auth 签名密钥 | `.dev.vars` | `wrangler secret put` |
 | `BETTER_AUTH_URL` | 站点地址（可选，同域可省略） | `.dev.vars` | 通常可省略 |
+| `R2_PUBLIC_URL` | R2 自定义域名或开发用 `r2.dev` 地址（可选） | `.dev.vars` | `wrangler.jsonc` 的 `vars` |
 
 本地开发：`cp .dev.vars.example .dev.vars` 后按需修改。
 
@@ -119,6 +122,8 @@ npm run dev       # http://localhost:3000
 
 ```bash
 wrangler login
+# 创建与 wrangler.jsonc 对应的私有存储桶（只需一次）
+wrangler r2 bucket create notion-clone-images
 # 设置密钥
 wrangler secret put TURSO_AUTH_TOKEN
 wrangler secret put BETTER_AUTH_SECRET
@@ -126,6 +131,10 @@ wrangler secret put BETTER_AUTH_SECRET
 # 把 libsql://… 数据库地址填进 wrangler.jsonc 的 "vars"，然后：
 npm run deploy
 ```
+
+默认通过 Worker 的 `NOTE_IMAGES` binding 读写私有 R2。若需要可公开引用的图床 URL，
+请在 R2 设置中绑定自定义域名（生产推荐）或启用 `r2.dev`（仅开发），再把该地址写入
+`R2_PUBLIC_URL`；R2 bucket 本身无需向客户端暴露访问密钥。
 
 首次部署后 workers.dev 域名可直接访问；绑定自定义域名时在 Cloudflare 控制台或
 `wrangler.jsonc` 的 `routes` 中配置。

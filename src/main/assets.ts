@@ -1,7 +1,8 @@
 import { app, dialog } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
+import { AwsClient } from 'aws4fetch'
 import type { SaveImageInput, SavedImage } from '@neonity/notion-clone-shared'
 
 /**
@@ -54,8 +55,58 @@ function toSaved(id: string): SavedImage {
   return { id, url: `${ASSET_SCHEME}://asset/${id}` }
 }
 
-/** Store raw image bytes as a new asset; the id doubles as the file name. */
-export function saveImage(input: SaveImageInput): SavedImage {
+interface R2Config {
+  accountId: string
+  accessKeyId: string
+  secretAccessKey: string
+  bucket: string
+  publicUrl: string
+}
+
+function getR2Config(): R2Config | null {
+  const values = {
+    accountId: process.env.R2_ACCOUNT_ID?.trim() ?? '',
+    accessKeyId: process.env.R2_ACCESS_KEY_ID?.trim() ?? '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY?.trim() ?? '',
+    bucket: process.env.R2_BUCKET?.trim() ?? '',
+    publicUrl: process.env.R2_PUBLIC_URL?.trim().replace(/\/+$/, '') ?? '',
+  }
+  if (Object.values(values).every((value) => !value)) return null
+  if (Object.values(values).some((value) => !value)) {
+    throw new Error(
+      'R2 配置不完整，需要 R2_ACCOUNT_ID、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY、R2_BUCKET 和 R2_PUBLIC_URL',
+    )
+  }
+  return values
+}
+
+async function uploadToR2(input: SaveImageInput, config: R2Config): Promise<SavedImage> {
+  const id = `${randomUUID()}${extFor(input)}`
+  const key = `images/${id}`
+  const client = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    service: 's3',
+    region: 'auto',
+  })
+  const response = await client.fetch(
+    `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}/${key}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': input.mime || 'image/png' },
+      body: input.data,
+    },
+  )
+  if (!response.ok) {
+    throw new Error(`R2 图片上传失败（HTTP ${response.status}）`)
+  }
+  return { id: key, url: `${config.publicUrl}/${key}` }
+}
+
+/** Store raw image bytes in R2 when configured, otherwise keep the local-first behavior. */
+export async function saveImage(input: SaveImageInput): Promise<SavedImage> {
+  const r2 = getR2Config()
+  if (r2) return uploadToR2(input, r2)
   const id = `${randomUUID()}${extFor(input)}`
   writeFileSync(join(getAssetsDir(), id), Buffer.from(input.data))
   return toSaved(id)
@@ -72,9 +123,14 @@ export async function pickImage(): Promise<SavedImage | null> {
   })
   if (res.canceled || res.filePaths.length === 0) return null
   const src = res.filePaths[0]
-  const id = `${randomUUID()}${extname(src).toLowerCase() || '.png'}`
-  copyFileSync(src, join(getAssetsDir(), id))
-  return toSaved(id)
+  const bytes = readFileSync(src)
+  const extension = extname(src).toLowerCase()
+  const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+  return saveImage({
+    name: src,
+    mime: MIME_BY_EXT[extension] || 'image/png',
+    data,
+  })
 }
 
 /**

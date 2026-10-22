@@ -20,7 +20,8 @@
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^1.2.0",
-    "@neonity/notion-clone-shared": "^0.1.0"
+    "@neonity/notion-clone-shared": "^0.1.0",
+    "aws4fetch": "^1.0.20"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

@@ -29,7 +29,7 @@ export function syncPageFavicon(pageIcon: string | null | undefined): void {
     favicon.id = FAVICON_ID
     favicon.rel = 'icon'
     favicon.type = 'image/svg+xml'
-    document.head.append(favicon)
+    document.head.appendChild(favicon)
   }
   favicon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`
 }

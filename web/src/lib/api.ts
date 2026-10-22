@@ -35,7 +35,7 @@ async function pickImage(): Promise<SavedImage | null> {
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = 'image/*'
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let settled = false
     const settle = (value: SavedImage | null): void => {
       if (settled) return
@@ -49,8 +49,8 @@ async function pickImage(): Promise<SavedImage | null> {
         const buffer = await file.arrayBuffer()
         const saved = await uploadImage({ name: file.name, mime: file.type || 'image/png', data: buffer })
         settle(saved)
-      } catch {
-        settle(null)
+      } catch (error) {
+        reject(error)
       }
     })
     input.addEventListener('cancel', () => settle(null))

@@ -4,6 +4,7 @@ import { and, asc, eq, ne, sql } from 'drizzle-orm'
 
 import { randomUUID } from 'node:crypto'
 import { getDb } from '~/lib/db'
+import { getR2Image } from './r2'
 import { block, page, asset } from '~/db/schema'
 import { getSession } from './session'
 import {
@@ -340,6 +341,11 @@ export async function getAssetBytes(
     .where(and(eq(asset.id, id), eq(asset.userId, userId)))
     .limit(1)
   if (!row) return null
+  if (row.data.startsWith('r2:')) {
+    const object = await getR2Image(row.data.slice(3))
+    if (!object) return null
+    return { mime: object.mime || row.mime, buffer: object.buffer }
+  }
   const buf = Buffer.from(row.data, 'base64')
   // 复制到独立的 ArrayBuffer，作为 Response body（workers 的 BodyInit 类型）。
   const out = new ArrayBuffer(buf.byteLength)

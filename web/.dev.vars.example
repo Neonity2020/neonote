@@ -5,3 +5,5 @@ TURSO_DATABASE_URL=http://127.0.0.1:8080
 TURSO_AUTH_TOKEN=
 BETTER_AUTH_SECRET=replace-with-openssl-rand-base64-32
 BETTER_AUTH_URL=http://localhost:3000
+# 可选：R2 自定义域名或 r2.dev 地址。留空时图片通过登录态保护的 /api/asset/:id 读取。
+R2_PUBLIC_URL=
