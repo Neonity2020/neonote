@@ -15,12 +15,38 @@ CREATE TABLE `account` (
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `note` (
+CREATE TABLE `asset` (
 	`id` text PRIMARY KEY NOT NULL,
-	`title` text NOT NULL,
-	`content` text DEFAULT '' NOT NULL,
+	`mime` text NOT NULL,
+	`data` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`user_id` text NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `block` (
+	`id` text PRIMARY KEY NOT NULL,
+	`page_id` text NOT NULL,
+	`type` text DEFAULT 'paragraph' NOT NULL,
+	`content` text DEFAULT '{}' NOT NULL,
+	`position` real DEFAULT 0 NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	`user_id` text NOT NULL,
+	FOREIGN KEY (`page_id`) REFERENCES `page`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `page` (
+	`id` text PRIMARY KEY NOT NULL,
+	`title` text DEFAULT '' NOT NULL,
+	`icon` text,
+	`parent_id` text,
+	`position` real DEFAULT 0 NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	`user_id` text NOT NULL,
+	FOREIGN KEY (`parent_id`) REFERENCES `page`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint

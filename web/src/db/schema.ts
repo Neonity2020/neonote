@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 export const user = sqliteTable('user', {
   id: text('id').primaryKey(),
@@ -56,16 +57,48 @@ export const verification = sqliteTable('verification', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }),
 })
 
-export const note = sqliteTable('note', {
+// ---------- Workspace（复刻 Electron 版 pages/blocks 表结构，增加 userId 隔离） ----------
+
+// 兄弟顺序用小数 position，插入取中点；时间戳是 epoch 毫秒，与 PageMeta 契约一致。
+export const page = sqliteTable('page', {
   id: text('id').primaryKey(),
-  title: text('title').notNull(),
-  content: text('content').notNull().default(''),
-  createdAt: integer('created_at', { mode: 'timestamp' })
-    .notNull()
-    .$defaultFn(() => new Date()),
+  title: text('title').notNull().default(''),
+  icon: text('icon'),
+  parentId: text('parent_id').references((): AnySQLiteColumn => page.id, {
+    onDelete: 'cascade',
+  }),
+  position: real('position').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
 })
 
-export type Note = typeof note.$inferSelect
+export const block = sqliteTable('block', {
+  id: text('id').primaryKey(),
+  pageId: text('page_id')
+    .notNull()
+    .references(() => page.id, { onDelete: 'cascade' }),
+  type: text('type').notNull().default('paragraph'),
+  // JSON TEXT 单列，块类型差异都收在 content 里（与 Electron 版一致）。
+  content: text('content').notNull().default('{}'),
+  position: real('position').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  // 冗余 userId：搜索 / 反链要全表扫描块，带这一列就不用每次 join page 判权属。
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+})
+
+// 图片块资产：base64 存库，通过 /api/asset/$id 路由回源（Electron 版存本地文件）。
+export const asset = sqliteTable('asset', {
+  id: text('id').primaryKey(),
+  mime: text('mime').notNull(),
+  data: text('data').notNull(),
+  createdAt: integer('created_at').notNull(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+})

@@ -1,23 +1,41 @@
 # Notion Clone Web
 
-Electron 版 Notion Clone 的 Web 端，跑在 Cloudflare Workers 上。
+Electron 版 Notion Clone 的 Web 端，跑在 Cloudflare Workers 上。**前端组件完整复刻自桌面版**
+（`packages/renderer`），数据层换成 TanStack Start server functions + Turso。
 
 技术栈：[TanStack Start](https://tanstack.com/start)（React 19 + Vite 8 + Tailwind CSS 4）、
 [better-auth](https://www.better-auth.com)（邮箱密码登录）、[drizzle-orm](https://orm.drizzle.team) +
-[Turso](https://turso.tech)（libsql 数据库）。
+[Turso](https://turso.tech)（libsql 数据库）、zustand + dnd-kit + Radix UI + shadcn 风格组件（与桌面版一致）。
 
 ## 目录结构
 
 ```
 web/
 ├── src/
-│   ├── db/schema.ts        # drizzle 表定义（better-auth 四张表 + note）
-│   ├── lib/db.ts           # Turso 连接（@libsql/client，进程内单例）
-│   ├── lib/auth.ts         # better-auth 服务端实例（drizzle adapter）
-│   ├── lib/auth-client.ts  # better-auth React 客户端
-│   ├── server/             # 服务端函数（session / notes CRUD）
-│   ├── routes/             # 文件路由：/ 、/login 、/signup 、/dashboard 、/api/auth/*
-│   └── styles/app.css      # Tailwind 入口
+│   ├── db/schema.ts        # drizzle 表定义：better-auth 四张表 + page / block / asset
+│   ├── lib/
+│   │   ├── db.ts           # Turso 连接（@libsql/client，进程内单例）
+│   │   ├── auth.ts         # better-auth 服务端实例（drizzle adapter）
+│   │   ├── auth-client.ts  # better-auth React 客户端
+│   │   ├── shared.ts       # 桌面版 @neonity/notion-clone-shared 契约的副本（类型 + 纯函数）
+│   │   ├── api.ts          # NotionApi 契约的 Web 实现（每个方法对应一个 server fn）
+│   │   ├── bridge.ts       # 把 api / settings / ai 注入 window.*（与 Electron preload 同构）
+│   │   ├── settingsApi.ts  # SettingsApi 的 localStorage 实现
+│   │   ├── aiApi.ts        # AiApi 占位实现（Web 版暂无 AI 后端）
+│   │   ├── caret.ts / wikiLink.ts / blockTypes.tsx / utils.ts   # 桌面版渲染层工具的原样副本
+│   ├── store.ts            # 桌面版 zustand store 的原样副本（走 window.api）
+│   ├── settingsStore.ts    # 桌面版设置 store 的原样副本（走 window.settings）
+│   ├── server/
+│   │   ├── queries.ts      # 纯服务端数据访问（drizzle），严禁被客户端 import
+│   │   ├── pages.ts        # server fns：页面树 / 欢迎页种子 / 搜索 / wiki 双链
+│   │   ├── blocks.ts       # server fns：块 CRUD / 重排
+│   │   └── assets.ts       # server fn：图片上传（base64 存库）
+│   ├── components/         # 桌面版组件复刻：Sidebar / Editor / BlockItem / TableBlock / …
+│   │   ├── App.tsx         # 桌面版 App 去掉 AI 助手入口
+│   │   └── ui/             # shadcn 风格基础组件（与桌面版一致）
+│   ├── assets/             # 空白页背景图（与桌面版同源）
+│   ├── routes/             # 文件路由：/ 、/login 、/signup 、/dashboard（工作区）、/api/*
+│   └── styles/app.css      # Tailwind 4 主题（桌面版 index.css 的移植）+ 编辑器 CSS
 ├── drizzle/                # drizzle-kit 生成的 SQL 迁移
 ├── drizzle.config.ts
 ├── vite.config.ts          # tailwind + cloudflare + tanstackStart + react
@@ -27,6 +45,29 @@ web/
 
 注意：`web/` 是独立 npm 项目（不参与根目录 Electron 工程的 workspaces），
 在 `web/` 目录内单独 `npm install`。
+
+## 桌面版复刻方式
+
+桌面版 UI 包通过 `window.api / window.settings / window.ai` 三个桥接面工作（Electron 由
+preload 注入）。Web 端按同一契约实现这三个面（`lib/bridge.ts` 在进入工作区前注入）：
+
+| 桥 | Web 实现 |
+| --- | --- |
+| `window.api`（NotionApi） | `lib/api.ts`：每个方法转发到 `server/` 里的 createServerFn（RPC fetch），全部按登录用户隔离 |
+| `window.settings`（SettingsApi） | `lib/settingsApi.ts`：localStorage 持久化 + 内存广播 |
+| `window.ai`（AiApi） | `lib/aiApi.ts`：占位实现，明确返回"未接入"；桌面版 AssistantPanel 未移植 |
+
+因此 `store.ts`、`components/*` 与桌面版逐字一致（仅导入别名 `@/` → `~/`、共享包 → `lib/shared.ts`），
+桌面版的组件修复原则上可以直接抄过来。
+
+## 数据模型
+
+`page` / `block` 复刻桌面版 SQLite 表结构（JSON content 单列、1024 间隔的小数 position、
+wiki 链接改写传播、欢迎页种子），并增加 `user_id` 外键做每用户隔离；`block.user_id`
+冗余一列，让搜索和反链扫描不必 join 判权属。图片资产（桌面版存本地文件）在 Web 版
+存为 `asset` 表的 base64，经 `/api/asset/$id` 路由回源（仅本人可读，上限约 2MB）。
+
+首次进入工作区时按用户种出「欢迎使用 Notion Clone」示例页（与桌面版首启一致）。
 
 ## 环境变量
 
@@ -50,8 +91,8 @@ cp .dev.vars.example .dev.vars
 数据库二选一：
 
 ```bash
-# 方式 A：本地 sqld（无需联网/账号）
-turso dev                 # 默认监听 http://127.0.0.1:8080
+# 方式 A：本地 sqld（无需联网/账号）；.dev.vars 默认指向 127.0.0.1:8081
+turso dev --port 8081 --db-file dev-local.db   # --db-file 让数据在重启后保留
 
 # 方式 B：真实 Turso 数据库
 turso db create notion-clone-web
