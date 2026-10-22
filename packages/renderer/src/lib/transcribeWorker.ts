@@ -67,6 +67,39 @@ async function ensurePipeline(mirror: boolean): Promise<void> {
   }
 }
 
+// transformers.js 的多语言 Whisper 不传 language 会强制按英文解码（源码里
+// "No language specified - defaulting to English"），中文音频会被"翻译"成英文。
+// 这里用前 30 秒探针判定语言：先按中文跑，输出含汉字且重复度正常就按中文转写，
+// 否则按英文。重复度（去重字符占比）用来排掉强制错语言时的高重复幻觉——
+// 比如英文音频被强制中文解码会输出「你成為你成為你…」这类字符多样性极低的文本。
+const PROBE_SAMPLES = 16000 * 30
+const MIN_UNIQUE_RATIO = 0.2
+
+function textOf(output: { text?: string } | string | null): string {
+  const text = typeof output === 'string' ? output : (output?.text ?? '')
+  return text.trim()
+}
+
+function containsHan(text: string): boolean {
+  return /[\u3400-\u4dbf\u4e00-\u9fff]/.test(text)
+}
+
+/** 去重字符占比：幻觉重复文本远低于 0.2，正常转写明显更高。 */
+function uniqueRatio(text: string): number {
+  if (!text) return 0
+  return new Set(text).size / text.length
+}
+
+async function transcribeWith(asr: NonNullable<AsrPipeline>, audio: Float32Array, language: 'chinese' | 'english'): Promise<string> {
+  const output = await asr(audio, {
+    language,
+    task: 'transcribe',
+    chunk_length_s: 30,
+    stride_length_s: 5
+  })
+  return textOf(output)
+}
+
 self.onmessage = async (event: MessageEvent<TranscribeRequest>): Promise<void> => {
   const msg = event.data
   if (!msg || msg.type !== 'transcribe') return
@@ -74,9 +107,18 @@ self.onmessage = async (event: MessageEvent<TranscribeRequest>): Promise<void> =
     post({ type: 'status', phase: 'loading', progress: 0 })
     await ensurePipeline(!!msg.mirror)
     post({ type: 'status', phase: 'decoding' })
-    const output = asr ? await asr(msg.audio, { chunk_length_s: 30, stride_length_s: 5 }) : null
-    const text = typeof output === 'string' ? output : (output?.text ?? '')
-    post({ type: 'result', id: msg.id, text: text.trim() })
+    if (!asr) throw new Error('识别管线未就绪')
+    // 探针只跑前 30 秒；短音频探针就是全量，中文时直接复用结果。
+    const probeAudio = msg.audio.length > PROBE_SAMPLES ? msg.audio.subarray(0, PROBE_SAMPLES) : msg.audio
+    const zhProbe = await transcribeWith(asr, probeAudio, 'chinese')
+    const isChinese = containsHan(zhProbe) && uniqueRatio(zhProbe) >= MIN_UNIQUE_RATIO
+    let text: string
+    if (isChinese) {
+      text = msg.audio.length > PROBE_SAMPLES ? await transcribeWith(asr, msg.audio, 'chinese') : zhProbe
+    } else {
+      text = msg.audio.length > PROBE_SAMPLES ? await transcribeWith(asr, msg.audio, 'english') : await transcribeWith(asr, probeAudio, 'english')
+    }
+    post({ type: 'result', id: msg.id, text })
   } catch (error) {
     post({
       type: 'error',
