@@ -302,6 +302,12 @@ export interface SavedImage {
   url: string
 }
 
+/** Raw bytes of a stored asset, readable back by the app (e.g. for transcription). */
+export interface AssetBytes {
+  mime: string
+  data: ArrayBuffer
+}
+
 /** A content block belonging to a page. */
 export interface Block {
   id: string
@@ -535,4 +541,11 @@ export interface NotionApi {
   /** Same shape as the image pair, for audio files (mp3 / wav / …). */
   saveAudio(input: SaveImageInput): Promise<SavedImage>
   pickAudio(): Promise<SavedImage | null>
+  /**
+   * Read back the bytes of an asset URL the app itself produced (uploaded image /
+   * audio). Used when the browser cannot fetch the URL directly (CORS on R2
+   * public URLs, custom schemes on desktop). Null when the URL is not readable
+   * through the app.
+   */
+  fetchAssetBytes(url: string): Promise<AssetBytes | null>
 }

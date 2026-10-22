@@ -47,7 +47,8 @@ const api: NotionApi = {
   saveImage: (input: SaveImageInput) => ipcRenderer.invoke('images:save', input),
   pickImage: () => ipcRenderer.invoke('images:pick'),
   saveAudio: (input: SaveImageInput) => ipcRenderer.invoke('audio:save', input),
-  pickAudio: () => ipcRenderer.invoke('audio:pick')
+  pickAudio: () => ipcRenderer.invoke('audio:pick'),
+  fetchAssetBytes: (url: string) => ipcRenderer.invoke('assets:fetch', url)
 }
 
 // The notes and pages surface.

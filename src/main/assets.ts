@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { AwsClient } from 'aws4fetch'
-import type { SaveImageInput, SavedImage } from '@neonity/notion-clone-shared'
+import type { AssetBytes, SaveImageInput, SavedImage } from '@neonity/notion-clone-shared'
 
 /**
  * Custom protocol used to serve local assets to the renderer.
@@ -181,6 +181,35 @@ export async function pickAudio(): Promise<SavedImage | null> {
     mime: MIME_BY_EXT[extension] || 'audio/mpeg',
     data,
   })
+}
+
+/**
+ * Read back the bytes of a media URL for the renderer (transcription etc.).
+ * The main process has no CORS restrictions, so besides the app's own
+ * nc-asset:// scheme (which the browser cannot fetch at all) any http(s) URL
+ * can be proxied through here. Null when the URL cannot be read.
+ */
+export async function fetchAssetBytes(url: string): Promise<AssetBytes | null> {
+  try {
+    if (url.startsWith(`${ASSET_SCHEME}://asset/`)) {
+      const file = url.slice(`${ASSET_SCHEME}://asset/`.length).split(/[?#]/)[0]
+      if (file.includes('/') || file.includes('..')) return null
+      const bytes = readFileSync(join(getAssetsDir(), file))
+      const mime = MIME_BY_EXT[extname(file).toLowerCase()] || 'application/octet-stream'
+      const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+      return { mime, data }
+    }
+    if (/^https?:\/\//.test(url)) {
+      const response = await fetch(url)
+      if (!response.ok) return null
+      const data = await response.arrayBuffer()
+      if (data.byteLength > 30 * 1024 * 1024) return null
+      return { mime: response.headers.get('content-type') || 'application/octet-stream', data }
+    }
+  } catch {
+    // 读取失败按不可读处理，调用方回退到自己的报错。
+  }
+  return null
 }
 
 /**

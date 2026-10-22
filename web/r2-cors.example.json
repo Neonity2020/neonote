@@ -1,0 +1,9 @@
+[
+  {
+    "AllowedOrigins": ["http://localhost:3000", "https://notion-clone-web.<你的子域>.workers.dev"],
+    "AllowedMethods": ["GET"],
+    "AllowedHeaders": [],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

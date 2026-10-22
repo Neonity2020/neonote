@@ -137,6 +137,18 @@ npm run deploy
 请在 R2 设置中绑定自定义域名（生产推荐）或启用 `r2.dev`（仅开发），再把该地址写入
 `R2_PUBLIC_URL`；R2 bucket 本身无需向客户端暴露访问密钥。
 
+### R2 公网 URL 的跨域（CORS）
+
+R2 公网地址默认**不带** CORS 头，浏览器里 `fetch` 不到——这不影响 `<audio>` / `<img>`
+播放显示，但影响语音识别等需要读字节的场景。解决（已内置，无需配置）：
+
+识别取音频时先浏览器直连，失败自动改走 `fetchAssetBytes` server fn——服务端取回字节
+没有跨域问题，按优先级覆盖三种来源：同源 `/api/asset/<id>` 查库；`R2_PUBLIC_URL` 下
+属于当前用户的 key 经 R2 binding 读；其他 http(s) 音频直链服务端代抓（仅接受音频类
+MIME，含 mp4 容器；≤30MB）。桌面版由主进程取回（`nc-asset://` 读盘、http(s) 直取），
+能力等价。另可给桶配置 CORS 方便第三方直读：复制 `r2-cors.example.json` 改成你的域名后执行
+`wrangler r2 bucket cors set notion-clone-images --file r2-cors.json`。
+
 首次部署后 workers.dev 域名可直接访问；绑定自定义域名时在 Cloudflare 控制台或
 `wrangler.jsonc` 的 `routes` 中配置。
 

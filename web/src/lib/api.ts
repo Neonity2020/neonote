@@ -1,4 +1,4 @@
-import type { NotionApi, SaveImageInput, SavedImage } from '~/lib/shared'
+import type { AssetBytes, NotionApi, SaveImageInput, SavedImage } from '~/lib/shared'
 import {
   listPages,
   createPage,
@@ -16,7 +16,7 @@ import {
   deleteBlock,
   reorderBlocks,
 } from '~/server/blocks'
-import { saveImage, saveAudio } from '~/server/assets'
+import { fetchAssetBytes, saveImage, saveAudio } from '~/server/assets'
 
 function toBase64(buffer: ArrayBuffer): string {
   // server fn 边界只走 JSON，ArrayBuffer 先转 base64。
@@ -74,6 +74,20 @@ function pickFile(
 const pickImage = (): Promise<SavedImage | null> => pickFile('image/*', uploadImage, 'image/png')
 const pickAudio = (): Promise<SavedImage | null> => pickFile('audio/*', uploadAudio, 'audio/mpeg')
 
+function base64ToArrayBuffer(dataBase64: string): ArrayBuffer {
+  const binary = atob(dataBase64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes.buffer
+}
+
+/** 读回应用自产资产的字节（R2 公网 URL 无 CORS 头，浏览器 fetch 不到时走这里）。 */
+async function readAssetBytes(url: string): Promise<AssetBytes | null> {
+  const result = await fetchAssetBytes({ data: url })
+  if (!result) return null
+  return { mime: result.mime, data: base64ToArrayBuffer(result.dataBase64) }
+}
+
 /**
  * NotionApi 的 Web 实现：每个方法对应一个 server 函数（走 TanStack Start 的
  * RPC fetch）。组件通过 window.api 使用它，与 Electron 端的 contextBridge 同构。
@@ -96,4 +110,5 @@ export const api: NotionApi = {
   pickImage,
   saveAudio: (input) => uploadAudio(input),
   pickAudio,
+  fetchAssetBytes: readAssetBytes,
 }
