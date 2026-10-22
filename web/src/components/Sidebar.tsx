@@ -620,6 +620,7 @@ function PageRow({
   const deletePage = useStore((s) => s.deletePage)
   const resetWelcomePage = useStore((s) => s.resetWelcomePage)
 
+  const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(page.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -708,17 +709,21 @@ function PageRow({
         </Tooltip>
       )}
       <span
-        className="hidden shrink-0 items-center gap-0.5 group-hover:flex"
+        // Keep the trigger measurable when the portaled menu takes hover/focus away.
+        className={cn(
+          'flex shrink-0 items-center gap-0.5',
+          !menuOpen && 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
+        )}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <DropdownMenu>
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="h-5 w-5">
+            <Button variant="ghost" size="icon-sm" className="h-5 w-5" aria-label="页面操作">
               <MoreHorizontal className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-36">
+          <DropdownMenuContent align="end" className="w-36">
             <DropdownMenuItem
               onClick={() => {
                 setDraft(page.title)
