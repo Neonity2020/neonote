@@ -10,8 +10,8 @@ import { requireUser } from './queries'
 import { getR2PublicUrl, hasR2ImageStorage, putR2Image } from './r2'
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-const MAX_BASE64_LENGTH = Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 4
-const MIME_EXTENSIONS: Record<string, string> = {
+const MAX_AUDIO_BYTES = 20 * 1024 * 1024
+const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/gif': 'gif',
@@ -21,6 +21,20 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'image/avif': 'avif',
   'image/x-icon': 'ico',
 }
+const AUDIO_EXTENSIONS: Record<string, string> = {
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/wave': 'wav',
+  'audio/ogg': 'ogg',
+  'audio/webm': 'weba',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/aac': 'aac',
+  'audio/flac': 'flac',
+  'audio/x-flac': 'flac',
+}
 
 interface SaveImageInputData {
   name: string
@@ -29,39 +43,62 @@ interface SaveImageInputData {
   dataBase64: string
 }
 
+interface SaveMediaOptions {
+  label: string
+  maxBytes: number
+  extensions: Record<string, string>
+}
+
+/** 存储一段媒体字节：R2 可用时写对象存储，否则 base64 落库。 */
+async function saveMedia(data: SaveImageInputData, options: SaveMediaOptions): Promise<SavedImage> {
+  const userId = await requireUser()
+  const maxBase64Length = Math.ceil(options.maxBytes / 3) * 4 + 4
+  if (data.dataBase64.length > maxBase64Length) {
+    throw new Error(`${options.label}过大，请选择 ${Math.floor(options.maxBytes / 1024 / 1024)}MB 以内的文件`)
+  }
+  const extension = options.extensions[data.mime]
+  if (!extension) throw new Error(`不支持该${options.label}格式`)
+
+  const id = randomUUID()
+  const bytes = Buffer.from(data.dataBase64, 'base64')
+  if (bytes.byteLength > options.maxBytes) {
+    throw new Error(`${options.label}过大，请选择 ${Math.floor(options.maxBytes / 1024 / 1024)}MB 以内的文件`)
+  }
+
+  let storedData = data.dataBase64
+  let url = `/api/asset/${id}`
+  if (hasR2ImageStorage()) {
+    const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_')
+    const key = `users/${safeUserId}/${id}.${extension}`
+    await putR2Image(key, new Uint8Array(bytes), data.mime)
+    storedData = `r2:${key}`
+    url = getR2PublicUrl(key) ?? url
+  }
+
+  await getDb().insert(asset).values({
+    id,
+    mime: data.mime,
+    data: storedData,
+    createdAt: Date.now(),
+    userId,
+  })
+  return { id, url }
+}
+
 export const saveImage = createServerFn({ method: 'POST' })
   .validator((d: unknown) => d as SaveImageInputData)
-  .handler(async ({ data }): Promise<SavedImage> => {
-    const userId = await requireUser()
-    if (data.dataBase64.length > MAX_BASE64_LENGTH) {
-      throw new Error('图片过大，请选择 10MB 以内的图片')
-    }
-    const mime = data.mime || 'image/png'
-    const extension = MIME_EXTENSIONS[mime]
-    if (!extension) throw new Error('不支持该图片格式')
+  .handler(async ({ data }): Promise<SavedImage> =>
+    saveMedia(
+      { ...data, mime: data.mime || 'image/png' },
+      { label: '图片', maxBytes: MAX_IMAGE_BYTES, extensions: IMAGE_EXTENSIONS },
+    ),
+  )
 
-    const id = randomUUID()
-    const bytes = Buffer.from(data.dataBase64, 'base64')
-    if (bytes.byteLength > MAX_IMAGE_BYTES) {
-      throw new Error('图片过大，请选择 10MB 以内的图片')
-    }
-
-    let storedData = data.dataBase64
-    let url = `/api/asset/${id}`
-    if (hasR2ImageStorage()) {
-      const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_')
-      const key = `users/${safeUserId}/${id}.${extension}`
-      await putR2Image(key, new Uint8Array(bytes), mime)
-      storedData = `r2:${key}`
-      url = getR2PublicUrl(key) ?? url
-    }
-
-    await getDb().insert(asset).values({
-      id,
-      mime,
-      data: storedData,
-      createdAt: Date.now(),
-      userId,
-    })
-    return { id, url }
-  })
+export const saveAudio = createServerFn({ method: 'POST' })
+  .validator((d: unknown) => d as SaveImageInputData)
+  .handler(async ({ data }): Promise<SavedImage> =>
+    saveMedia(
+      { ...data, mime: data.mime || 'audio/mpeg' },
+      { label: '音频', maxBytes: MAX_AUDIO_BYTES, extensions: AUDIO_EXTENSIONS },
+    ),
+  )

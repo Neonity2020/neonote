@@ -45,7 +45,9 @@ const api: NotionApi = {
   getPageLinks: (pageId: string) => ipcRenderer.invoke('links:page-links', pageId),
 
   saveImage: (input: SaveImageInput) => ipcRenderer.invoke('images:save', input),
-  pickImage: () => ipcRenderer.invoke('images:pick')
+  pickImage: () => ipcRenderer.invoke('images:pick'),
+  saveAudio: (input: SaveImageInput) => ipcRenderer.invoke('audio:save', input),
+  pickAudio: () => ipcRenderer.invoke('audio:pick')
 }
 
 // The notes and pages surface.

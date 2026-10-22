@@ -440,42 +440,56 @@ export function BlockItem({
     }
   }
 
-  const pasteImageFile = async (file: File, el: HTMLElement): Promise<void> => {
+  const pasteMediaFile = async (
+    file: File,
+    el: HTMLElement,
+    kind: 'image' | 'audio'
+  ): Promise<void> => {
     try {
       const data = await file.arrayBuffer()
-      const saved = await window.api.saveImage({
-        name: file.name || 'pasted-image.png',
-        mime: file.type || 'image/png',
-        data
-      })
+      const saved =
+        kind === 'audio'
+          ? await window.api.saveAudio({
+              name: file.name || 'pasted-audio.mp3',
+              mime: file.type || 'audio/mpeg',
+              data
+            })
+          : await window.api.saveImage({
+              name: file.name || 'pasted-image.png',
+              mime: file.type || 'image/png',
+              data
+            })
       // Split text at caret: keep the part before caret in this block,
-      // insert the image after it, and move the rest into a new paragraph below the image
+      // insert the media after it, and move the rest into a new paragraph below the media
       const fullText = el.textContent ?? ''
       const offset = getCaretOffset(el)
       const before = fullText.slice(0, offset)
       const after = fullText.slice(offset)
       el.textContent = before
       updateBlockLocal(block.id, { ...block.content, text: before })
-      const imgBlock = await insertBlockAfter(block.id, 'image', { src: saved.url })
-      if (!imgBlock) return
-      void insertBlockAfter(imgBlock.id, 'paragraph', { text: after }).then((nb) => {
+      const content = kind === 'audio' ? { src: saved.url, text: saved.url } : { src: saved.url }
+      const mediaBlock = await insertBlockAfter(block.id, kind, content)
+      if (!mediaBlock) return
+      void insertBlockAfter(mediaBlock.id, 'paragraph', { text: after }).then((nb) => {
         if (nb) requestFocus(nb.id, 0)
       })
     } catch (err) {
-      console.error('粘贴图片失败', err)
+      console.error('粘贴媒体文件失败', err)
     }
   }
 
   // Plain-text paste goes through execCommand so the browser keeps its native undo stack.
   const handlePaste = (e: React.ClipboardEvent): void => {
-    const imageItem = Array.from(e.clipboardData.items).find(
-      (item) => item.kind === 'file' && item.type.startsWith('image/')
+    const mediaItem = Array.from(e.clipboardData.items).find(
+      (item) => item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('audio/'))
     )
-    if (imageItem) {
+    if (mediaItem) {
       e.preventDefault()
       if (slashOpen) onSlashChange(block.id, null)
-      const file = imageItem.getAsFile()
-      if (file) void pasteImageFile(file, e.currentTarget as HTMLElement)
+      const file = mediaItem.getAsFile()
+      if (file) {
+        void pasteMediaFile(file, e.currentTarget as HTMLElement, mediaItem.type.startsWith('audio/') ? 'audio' : 'image')
+      }
       return
     }
     e.preventDefault()

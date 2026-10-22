@@ -16,25 +16,38 @@ import {
   deleteBlock,
   reorderBlocks,
 } from '~/server/blocks'
-import { saveImage } from '~/server/assets'
+import { saveImage, saveAudio } from '~/server/assets'
 
-async function uploadImage(input: SaveImageInput): Promise<SavedImage> {
+function toBase64(buffer: ArrayBuffer): string {
   // server fn 边界只走 JSON，ArrayBuffer 先转 base64。
-  const bytes = new Uint8Array(input.data)
+  const bytes = new Uint8Array(buffer)
   let binary = ''
   const chunk = 0x8000
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
-  const dataBase64 = btoa(binary)
+  return btoa(binary)
+}
+
+async function uploadImage(input: SaveImageInput): Promise<SavedImage> {
+  const dataBase64 = toBase64(input.data)
   return saveImage({ data: { name: input.name, mime: input.mime, dataBase64 } })
 }
 
-/** 浏览器版 pickImage：动态建一个文件选择框，取代 Electron 的系统对话框。 */
-async function pickImage(): Promise<SavedImage | null> {
+async function uploadAudio(input: SaveImageInput): Promise<SavedImage> {
+  const dataBase64 = toBase64(input.data)
+  return saveAudio({ data: { name: input.name, mime: input.mime, dataBase64 } })
+}
+
+/** 浏览器版文件选择框，取代 Electron 的系统对话框。accept 限定类型。 */
+function pickFile(
+  accept: string,
+  upload: (input: SaveImageInput) => Promise<SavedImage>,
+  fallbackMime: string,
+): Promise<SavedImage | null> {
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = 'image/*'
+  input.accept = accept
   return new Promise((resolve, reject) => {
     let settled = false
     const settle = (value: SavedImage | null): void => {
@@ -47,7 +60,7 @@ async function pickImage(): Promise<SavedImage | null> {
       if (!file) return settle(null)
       try {
         const buffer = await file.arrayBuffer()
-        const saved = await uploadImage({ name: file.name, mime: file.type || 'image/png', data: buffer })
+        const saved = await upload({ name: file.name, mime: file.type || fallbackMime, data: buffer })
         settle(saved)
       } catch (error) {
         reject(error)
@@ -57,6 +70,9 @@ async function pickImage(): Promise<SavedImage | null> {
     input.click()
   })
 }
+
+const pickImage = (): Promise<SavedImage | null> => pickFile('image/*', uploadImage, 'image/png')
+const pickAudio = (): Promise<SavedImage | null> => pickFile('audio/*', uploadAudio, 'audio/mpeg')
 
 /**
  * NotionApi 的 Web 实现：每个方法对应一个 server 函数（走 TanStack Start 的
@@ -78,4 +94,6 @@ export const api: NotionApi = {
   getPageLinks: (pageId) => getPageLinks({ data: pageId }),
   saveImage: (input) => uploadImage(input),
   pickImage,
+  saveAudio: (input) => uploadAudio(input),
+  pickAudio,
 }

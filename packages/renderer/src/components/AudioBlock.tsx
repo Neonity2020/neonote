@@ -71,6 +71,21 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
     }
   }
 
+  // 上传本地音频文件（桌面版存资产目录 / R2，Web 版存 R2 / 数据库），
+  // 成功后直接进入播放态。
+  const uploadLocal = async (): Promise<void> => {
+    setError('')
+    try {
+      const saved = await window.api.pickAudio()
+      if (!saved) return
+      updateBlockLocal(block.id, { ...block.content, src: saved.url, text: saved.url })
+      setDraft(saved.url)
+      setEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '上传失败')
+    }
+  }
+
   const remove = async (): Promise<void> => {
     const { prev, next } = getNeighbors()
     await removeBlock(block.id)
@@ -215,6 +230,9 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
           </div>
           <button type="submit" className="h-10 shrink-0 rounded-md bg-foreground px-3 text-sm text-background hover:opacity-90">
             嵌入
+          </button>
+          <button type="button" className="h-10 shrink-0 rounded-md px-3 text-sm hover:bg-accent" onClick={() => void uploadLocal()}>
+            上传本地音频
           </button>
           {src && (
             <button type="button" className="h-10 shrink-0 rounded-md px-3 text-sm hover:bg-accent" onClick={() => { setDraft(src); setEditing(false); setError('') }}>

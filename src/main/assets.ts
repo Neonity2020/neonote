@@ -13,7 +13,7 @@ import type { SaveImageInput, SavedImage } from '@neonity/notion-clone-shared'
  */
 export const ASSET_SCHEME = 'nc-asset'
 
-/** MIME type to file extension, for the image types the app accepts. */
+/** MIME type to file extension, for the media types the app accepts. */
 const EXT_BY_MIME: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -22,7 +22,19 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/bmp': '.bmp',
   'image/svg+xml': '.svg',
   'image/avif': '.avif',
-  'image/x-icon': '.ico'
+  'image/x-icon': '.ico',
+  'audio/mpeg': '.mp3',
+  'audio/mp3': '.mp3',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/wave': '.wav',
+  'audio/ogg': '.ogg',
+  'audio/webm': '.weba',
+  'audio/mp4': '.m4a',
+  'audio/x-m4a': '.m4a',
+  'audio/aac': '.aac',
+  'audio/flac': '.flac',
+  'audio/x-flac': '.flac'
 }
 
 /** File extension to MIME type, used when serving assets over the custom protocol. */
@@ -35,7 +47,15 @@ export const MIME_BY_EXT: Record<string, string> = {
   '.bmp': 'image/bmp',
   '.svg': 'image/svg+xml',
   '.avif': 'image/avif',
-  '.ico': 'image/x-icon'
+  '.ico': 'image/x-icon',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.weba': 'audio/webm',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac'
 }
 
 /** The asset directory under userData, created on demand. */
@@ -80,9 +100,9 @@ function getR2Config(): R2Config | null {
   return values
 }
 
-async function uploadToR2(input: SaveImageInput, config: R2Config): Promise<SavedImage> {
+async function uploadToR2(input: SaveImageInput, config: R2Config, kind: 'images' | 'audio'): Promise<SavedImage> {
   const id = `${randomUUID()}${extFor(input)}`
-  const key = `images/${id}`
+  const key = `${kind}/${id}`
   const client = new AwsClient({
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
@@ -93,12 +113,12 @@ async function uploadToR2(input: SaveImageInput, config: R2Config): Promise<Save
     `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}/${key}`,
     {
       method: 'PUT',
-      headers: { 'Content-Type': input.mime || 'image/png' },
+      headers: { 'Content-Type': input.mime || 'application/octet-stream' },
       body: input.data,
     },
   )
   if (!response.ok) {
-    throw new Error(`R2 图片上传失败（HTTP ${response.status}）`)
+    throw new Error(`R2 上传失败（HTTP ${response.status}）`)
   }
   return { id: key, url: `${config.publicUrl}/${key}` }
 }
@@ -106,7 +126,16 @@ async function uploadToR2(input: SaveImageInput, config: R2Config): Promise<Save
 /** Store raw image bytes in R2 when configured, otherwise keep the local-first behavior. */
 export async function saveImage(input: SaveImageInput): Promise<SavedImage> {
   const r2 = getR2Config()
-  if (r2) return uploadToR2(input, r2)
+  if (r2) return uploadToR2(input, r2, 'images')
+  const id = `${randomUUID()}${extFor(input)}`
+  writeFileSync(join(getAssetsDir(), id), Buffer.from(input.data))
+  return toSaved(id)
+}
+
+/** Store an audio file the same way: R2 when configured, otherwise the asset directory. */
+export async function saveAudio(input: SaveImageInput): Promise<SavedImage> {
+  const r2 = getR2Config()
+  if (r2) return uploadToR2(input, r2, 'audio')
   const id = `${randomUUID()}${extFor(input)}`
   writeFileSync(join(getAssetsDir(), id), Buffer.from(input.data))
   return toSaved(id)
@@ -129,6 +158,27 @@ export async function pickImage(): Promise<SavedImage | null> {
   return saveImage({
     name: src,
     mime: MIME_BY_EXT[extension] || 'image/png',
+    data,
+  })
+}
+
+/** Let the user pick an audio file and copy it into the asset store. */
+export async function pickAudio(): Promise<SavedImage | null> {
+  const res = await dialog.showOpenDialog({
+    title: '选择音频',
+    properties: ['openFile'],
+    filters: [
+      { name: '音频', extensions: ['mp3', 'wav', 'ogg', 'oga', 'weba', 'm4a', 'aac', 'flac'] }
+    ]
+  })
+  if (res.canceled || res.filePaths.length === 0) return null
+  const src = res.filePaths[0]
+  const bytes = readFileSync(src)
+  const extension = extname(src).toLowerCase()
+  const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+  return saveAudio({
+    name: src,
+    mime: MIME_BY_EXT[extension] || 'audio/mpeg',
     data,
   })
 }

@@ -457,9 +457,11 @@ export function reorderBlocks(pageId: string, orderedIds: string[]): void {
   touchPage(pageId, ts)
 }
 
-/** Collect asset file ids still referenced by image blocks (for garbage collection). */
+/** Collect asset file ids still referenced by image or audio blocks (for garbage collection). */
 export function listImageAssetIds(): Set<string> {
-  const rows = db.prepare("SELECT content FROM blocks WHERE type = 'image'").all() as unknown as Array<{
+  const rows = db
+    .prepare("SELECT content FROM blocks WHERE type IN ('image', 'audio')")
+    .all() as unknown as Array<{
     content: string
   }>
   const ids = new Set<string>()

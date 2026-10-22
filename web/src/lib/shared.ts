@@ -532,4 +532,7 @@ export interface NotionApi {
   getPageLinks(pageId: string): Promise<PageLinks>
   saveImage(input: SaveImageInput): Promise<SavedImage>
   pickImage(): Promise<SavedImage | null>
+  /** Same shape as the image pair, for audio files (mp3 / wav / …). */
+  saveAudio(input: SaveImageInput): Promise<SavedImage>
+  pickAudio(): Promise<SavedImage | null>
 }

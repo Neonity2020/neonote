@@ -6,7 +6,7 @@ import { basename, extname } from 'node:path'
 import * as db from './db'
 import { registerAi } from './ai'
 import { registerSettings, getSettings } from './settings'
-import { ASSET_SCHEME, MIME_BY_EXT, gcAssets, getAssetsDir, pickImage, saveImage } from './assets'
+import { ASSET_SCHEME, MIME_BY_EXT, gcAssets, getAssetsDir, pickAudio, pickImage, saveAudio, saveImage } from './assets'
 import type {
   CreateBlockInput,
   CreatePageInput,
@@ -95,6 +95,8 @@ function registerIpc(): void {
 
   ipcMain.handle('images:save', (_e, input: SaveImageInput) => saveImage(input))
   ipcMain.handle('images:pick', () => pickImage())
+  ipcMain.handle('audio:save', (_e, input: SaveImageInput) => saveAudio(input))
+  ipcMain.handle('audio:pick', () => pickAudio())
 }
 
 /** Serve the files in the asset directory to the renderer over the custom protocol. */
