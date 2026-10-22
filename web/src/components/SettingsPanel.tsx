@@ -4,6 +4,7 @@ import {
   FolderOpen,
   HardDrive,
   Info,
+  KeyRound,
   Loader2,
   MessageSquareX,
   Palette,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '~/lib/utils'
 import { useSettings } from '~/settingsStore'
+import { authClient } from '~/lib/auth-client'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import {
@@ -27,9 +29,10 @@ import {
   type ThemeMode
 } from '~/lib/shared'
 
-type SectionId = 'appearance' | 'ai' | 'data' | 'about'
+type SectionId = 'account' | 'appearance' | 'ai' | 'data' | 'about'
 
 const SECTIONS: Array<{ id: SectionId; label: string; icon: JSX.Element }> = [
+  { id: 'account', label: '账号', icon: <KeyRound /> },
   { id: 'appearance', label: '外观', icon: <Palette /> },
   { id: 'ai', label: 'AI 助手', icon: <Sparkles /> },
   { id: 'data', label: '数据与存储', icon: <HardDrive /> },
@@ -96,6 +99,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): JSX.Element {
             </Button>
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-2">
+            {section === 'account' && <AccountSection />}
             {section === 'appearance' && <AppearanceSection />}
             {section === 'ai' && <AiSection />}
             {section === 'data' && <DataSection />}
@@ -196,6 +200,94 @@ function Toggle({
         )}
       />
     </button>
+  )
+}
+
+/* ---------- Account（Web 版新增：桌面版无账号体系） ---------- */
+
+function AccountSection(): JSX.Element {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const submit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    setError(null)
+    setNotice(null)
+    if (!currentPassword || !newPassword) {
+      setError('请填写当前密码和新密码')
+      return
+    }
+    if (newPassword.length < 8) {
+      setError('新密码至少 8 个字符')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('两次输入的新密码不一致')
+      return
+    }
+    setSubmitting(true)
+    // better-auth 返回 { error } 而不是抛异常；老会话保持有效。
+    const { error: authError } = await authClient.changePassword({
+      currentPassword,
+      newPassword,
+      revokeOtherSessions: true
+    })
+    setSubmitting(false)
+    if (authError) {
+      setError(
+        authError.message?.toLowerCase().includes('invalid')
+          ? '当前密码不正确'
+          : authError.message || '修改失败，请重试'
+      )
+      return
+    }
+    setNotice('密码已更新')
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+  }
+
+  return (
+    <form onSubmit={(e) => void submit(e)}>
+      <Row label="修改密码" hint="修改后其他设备的登录会话会被踢下线，当前会话保持有效" stacked>
+        <div className="max-w-xs space-y-2">
+          <Input
+            type="password"
+            placeholder="当前密码"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+          <Input
+            type="password"
+            placeholder="新密码（至少 8 个字符）"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          <Input
+            type="password"
+            placeholder="确认新密码"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          {notice && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Check className="h-3 w-3" /> {notice}
+            </p>
+          )}
+          <Button type="submit" size="sm" disabled={submitting}>
+            {submitting && <Loader2 className="animate-spin" />} 更新密码
+          </Button>
+        </div>
+      </Row>
+    </form>
   )
 }
 

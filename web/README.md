@@ -58,7 +58,8 @@ preload 注入）。Web 端按同一契约实现这三个面（`lib/bridge.ts` �
 | `window.ai`（AiApi） | `lib/aiApi.ts`：占位实现，明确返回"未接入"；桌面版 AssistantPanel 未移植 |
 
 因此 `store.ts`、`components/*` 与桌面版逐字一致（仅导入别名 `@/` → `~/`、共享包 → `lib/shared.ts`），
-桌面版的组件修复原则上可以直接抄过来。
+桌面版的组件修复原则上可以直接抄过来。例外：`SettingsPanel.tsx` 在桌面版分区之上新增了
+Web 特有的「账号」分区（修改密码，走 better-auth `changePassword`）。
 
 ## 数据模型
 
