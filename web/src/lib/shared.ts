@@ -310,11 +310,12 @@ export interface Block {
   updatedAt: number
 }
 
-/** A page as shown in the sidebar: identity, title, icon, tree position and timestamps. */
+/** Page metadata shared by the sidebar and editor, including its icon and optional cover. */
 export interface PageMeta {
   id: string
   title: string
   icon: string | null
+  cover: string | null
   parentId: string | null
   position: number
   createdAt: number
@@ -341,6 +342,7 @@ export interface UpdatePageInput {
   id: string
   title?: string
   icon?: string | null
+  cover?: string | null
 }
 
 /**

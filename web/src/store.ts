@@ -154,7 +154,7 @@ function schedulePageSave(id: string): void {
       // top of the user's latest text instead of being overwritten by it.
       flushSaves()
       void window.api
-        .updatePage({ id: page.id, title: page.title, icon: page.icon })
+        .updatePage({ id: page.id, title: page.title, icon: page.icon, cover: page.cover })
         .then((result) => {
           // A rename also rewrites the `[[old title]]` links inside other blocks'
           // bodies; pull the affected blocks back from the database into local state.
@@ -185,6 +185,7 @@ interface StoreState {
   createPage: (parentId?: string | null, title?: string) => Promise<string>
   renamePage: (id: string, title: string) => void
   setPageIcon: (id: string, icon: string | null) => void
+  setPageCover: (id: string, cover: string | null) => void
   deletePage: (id: string) => Promise<void>
   /** Move a page: re-parent it, or reorder it among its siblings. */
   movePage: (id: string, parentId: string | null, index: number) => Promise<void>
@@ -255,6 +256,11 @@ export const useStore = create<StoreState>((set, get) => ({
   setPageIcon: (id, icon) => {
     set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, icon } : p)) }))
     void window.api.updatePage({ id, icon })
+  },
+
+  setPageCover: (id, cover) => {
+    set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, cover } : p)) }))
+    void window.api.updatePage({ id, cover })
   },
 
   deletePage: async (id) => {

@@ -57,6 +57,7 @@ export function initDb(): void {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT '',
       icon TEXT,
+      cover TEXT,
       parent_id TEXT REFERENCES pages(id) ON DELETE CASCADE,
       position REAL NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
@@ -82,6 +83,11 @@ export function initDb(): void {
       updated_at INTEGER NOT NULL
     );
   `)
+
+  const pageColumns = db.prepare('PRAGMA table_info(pages)').all() as unknown as Array<{ name: string }>
+  if (!pageColumns.some((column) => column.name === 'cover')) {
+    db.exec('ALTER TABLE pages ADD COLUMN cover TEXT')
+  }
   seedIfEmpty()
 }
 
@@ -89,6 +95,7 @@ interface PageRow {
   id: string
   title: string
   icon: string | null
+  cover: string | null
   parent_id: string | null
   position: number
   created_at: number
@@ -110,6 +117,7 @@ function pageFromRow(row: PageRow): PageMeta {
     id: row.id,
     title: row.title,
     icon: row.icon,
+    cover: row.cover,
     parentId: row.parent_id,
     position: row.position,
     createdAt: row.created_at,
@@ -163,7 +171,7 @@ export function createPage(input: CreatePageInput): PageMeta {
     : (db.prepare('SELECT MAX(position) AS m FROM pages WHERE parent_id IS NULL').get() as { m: number | null }).m
   const position = (maxPos ?? 0) + POSITION_STEP
   db.prepare(
-    'INSERT INTO pages (id, title, icon, parent_id, position, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?)'
+    'INSERT INTO pages (id, title, icon, cover, parent_id, position, created_at, updated_at) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?)'
   ).run(id, input.title ?? '', parentId, position, ts, ts)
   // Every new page starts with one empty paragraph block
   insertBlock({ pageId: id, type: 'paragraph', content: { text: '' }, afterId: null })
@@ -171,6 +179,7 @@ export function createPage(input: CreatePageInput): PageMeta {
     id,
     title: input.title ?? '',
     icon: null,
+    cover: null,
     parentId,
     position,
     createdAt: ts,
@@ -179,7 +188,7 @@ export function createPage(input: CreatePageInput): PageMeta {
 }
 
 /**
- * Update a page's title and/or icon. A title change also rewrites the wiki
+ * Update a page's title, icon and/or cover. A title change also rewrites the wiki
  * links that pointed at the old title.
  */
 export function updatePage(input: UpdatePageInput): PageUpdateResult {
@@ -198,6 +207,9 @@ export function updatePage(input: UpdatePageInput): PageUpdateResult {
   }
   if (input.icon !== undefined) {
     db.prepare('UPDATE pages SET icon = ?, updated_at = ? WHERE id = ?').run(input.icon, ts, input.id)
+  }
+  if (input.cover !== undefined) {
+    db.prepare('UPDATE pages SET cover = ?, updated_at = ? WHERE id = ?').run(input.cover, ts, input.id)
   }
   return { updatedBlockIds }
 }
@@ -782,6 +794,7 @@ export function resetWelcomePage(): PageMeta {
     id: row.id,
     title: row.title,
     icon: row.icon,
+    cover: row.cover,
     parentId: row.parent_id,
     position: row.position,
     createdAt: row.created_at,

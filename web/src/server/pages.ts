@@ -93,6 +93,12 @@ export const updatePage = createServerFn({ method: 'POST' })
         .set({ icon: data.icon, updatedAt: ts })
         .where(and(eq(page.id, data.id), eq(page.userId, userId)))
     }
+    if (data.cover !== undefined) {
+      await db
+        .update(page)
+        .set({ cover: data.cover, updatedAt: ts })
+        .where(and(eq(page.id, data.id), eq(page.userId, userId)))
+    }
     return { updatedBlockIds }
   })
 

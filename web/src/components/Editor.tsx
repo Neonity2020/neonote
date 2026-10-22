@@ -8,7 +8,7 @@ import {
   type DragEndEvent
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { FileText } from 'lucide-react'
+import { FileText, ImagePlus, Trash2 } from 'lucide-react'
 import { useStore } from '~/store'
 import { useSettings } from '~/settingsStore'
 import { filterBlockTypes, type BlockTypeMeta } from '~/lib/blockTypes'
@@ -17,6 +17,9 @@ import { createTableData, tableToText, createDatabaseData, databaseToText } from
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
 import { LinkPanel } from './LinkPanel'
+import { CoverPicker, getCoverBackground } from './CoverPicker'
+import { Button } from './ui/button'
+import { cn } from '~/lib/utils'
 import newNoteWizardBackground from '~/assets/new-note-wizard-bg.webp'
 
 interface SlashState {
@@ -31,6 +34,7 @@ export function Editor(): JSX.Element {
   const blocksLoading = useStore((s) => s.blocksLoading)
   const renamePage = useStore((s) => s.renamePage)
   const setPageIcon = useStore((s) => s.setPageIcon)
+  const setPageCover = useStore((s) => s.setPageCover)
   const setBlockType = useStore((s) => s.setBlockType)
   const updateBlockLocal = useStore((s) => s.updateBlockLocal)
   const insertBlockAfter = useStore((s) => s.insertBlockAfter)
@@ -41,6 +45,7 @@ export function Editor(): JSX.Element {
   const [title, setTitle] = useState(page?.title ?? '')
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false)
   const [slash, setSlash] = useState<SlashState | null>(null)
   const [slashIndex, setSlashIndex] = useState(0)
 
@@ -61,6 +66,7 @@ export function Editor(): JSX.Element {
   // otherwise be overwritten by the next character typed here.
   useEffect(() => {
     setTitle(page?.title ?? '')
+    setCoverPickerOpen(false)
   }, [currentPageId, page?.title])
 
   // Keep the title tall enough both when its text changes and when the editor
@@ -209,18 +215,68 @@ export function Editor(): JSX.Element {
           <div className="absolute inset-0 bg-gradient-to-b from-background/15 via-background/5 to-background/30 dark:from-background/45 dark:via-background/25 dark:to-background/60" />
         </div>
       )}
+      {page.cover && (
+        <figure
+          className="group/cover relative h-[30vh] min-h-60 max-h-[420px] w-full overflow-hidden bg-muted bg-cover bg-center"
+          style={{ backgroundImage: getCoverBackground(page.cover) }}
+        >
+          <figcaption className="sr-only">笔记封面</figcaption>
+          <div className="absolute bottom-3 right-4 flex gap-2 opacity-0 transition-opacity group-hover/cover:opacity-100 focus-within:opacity-100">
+            <Button variant="secondary" size="xs" onClick={() => setCoverPickerOpen(true)}>
+              <ImagePlus data-icon="inline-start" />
+              更换封面
+            </Button>
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={() => {
+                setPageCover(page.id, null)
+                setCoverPickerOpen(false)
+              }}
+            >
+              <Trash2 data-icon="inline-start" />
+              移除
+            </Button>
+          </div>
+        </figure>
+      )}
       <div
-        className="relative z-[1] mx-auto w-full px-20 pb-[30vh] pt-14"
+        className={cn(
+          'relative z-[1] mx-auto w-full px-20 pb-[30vh]',
+          page.cover ? 'pt-0' : 'pt-14'
+        )}
         style={{ maxWidth: 'var(--editor-max-width, 768px)' }}
       >
+      {coverPickerOpen && (
+        <CoverPicker
+          currentCover={page.cover}
+          onSelect={(cover) => setPageCover(page.id, cover)}
+          onClose={() => setCoverPickerOpen(false)}
+        />
+      )}
       <div className="relative">
-        <button
-          className="mb-1 flex h-12 w-12 items-center justify-center rounded-md text-4xl transition-colors hover:bg-accent"
-          onClick={() => setIconPickerOpen((v) => !v)}
-          title="更换图标"
-        >
-          {page.icon ?? <FileText className="h-9 w-9 text-muted-foreground/40" />}
-        </button>
+        <div className={cn('flex items-center gap-1', page.cover ? '-mt-10 mb-8' : 'mb-1')}>
+          <button
+            className={cn(
+              'flex items-center justify-center rounded-md transition-colors hover:bg-accent',
+              page.cover ? 'size-20 text-6xl' : 'size-12 text-4xl'
+            )}
+            onClick={() => setIconPickerOpen((v) => !v)}
+            title="更换图标"
+          >
+            {page.icon ?? (
+              <FileText
+                className={cn('text-muted-foreground/40', page.cover ? 'size-14' : 'size-9')}
+              />
+            )}
+          </button>
+          {!page.cover && (
+            <Button variant="ghost" size="xs" onClick={() => setCoverPickerOpen(true)}>
+              <ImagePlus data-icon="inline-start" />
+              添加封面
+            </Button>
+          )}
+        </div>
         {iconPickerOpen && (
           <EmojiPicker
             onSelect={(emoji) => setPageIcon(page.id, emoji)}

@@ -64,6 +64,7 @@ export const page = sqliteTable('page', {
   id: text('id').primaryKey(),
   title: text('title').notNull().default(''),
   icon: text('icon'),
+  cover: text('cover'),
   parentId: text('parent_id').references((): AnySQLiteColumn => page.id, {
     onDelete: 'cascade',
   }),

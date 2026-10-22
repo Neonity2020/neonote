@@ -42,6 +42,7 @@ export function pageFromRow(row: PageRow): PageMeta {
     id: row.id,
     title: row.title,
     icon: row.icon,
+    cover: row.cover,
     parentId: row.parentId,
     position: row.position,
     createdAt: row.createdAt,
@@ -83,10 +84,10 @@ export async function createPageRow(
         : and(eq(page.userId, userId), sql`${page.parentId} IS NULL`),
     )
   const position = (max?.m ?? 0) + POSITION_STEP
-  await getDb().insert(page).values({ id, title, icon: null, parentId, position, createdAt: ts, updatedAt: ts, userId })
+  await getDb().insert(page).values({ id, title, icon: null, cover: null, parentId, position, createdAt: ts, updatedAt: ts, userId })
   // 每个新页面以一个空段落块开始
   await insertBlockRow(userId, { pageId: id, type: 'paragraph', content: { text: '' }, afterId: null })
-  return { id, title, icon: null, parentId, position, createdAt: ts, updatedAt: ts }
+  return { id, title, icon: null, cover: null, parentId, position, createdAt: ts, updatedAt: ts }
 }
 
 /** 确认页面属于当前用户；不属于时抛错。 */
