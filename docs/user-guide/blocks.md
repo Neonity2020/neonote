@@ -82,6 +82,12 @@
 - 链接存在 `content.src`，同时镜像到 `content.text`，能被搜索命中。
 - 「更换链接」重新进入编辑；`Esc` 取消保留原链接。
 - 与图片/表格一样是**无文本块**：Backspace 不会把上一块文本合并进来，只移动焦点。
+- **语音识别**：「识别文字」把音频转成文字（Whisper，浏览器本地 WASM 推理，音频不上传）。
+  - 转写存 `content.transcript`，并镜像到 `content.text`，因此可被搜索命中。
+  - 首次使用会下载量化版 whisper-base 模型（几十 MB，之后走浏览器缓存）；HuggingFace
+    直连失败时自动改走 hf-mirror.com 镜像（选择记在 localStorage）。
+  - 识别在 Web Worker 里跑，长音频按 30 秒分块，界面不卡顿。
+  - 音频链接需允许跨域访问（CORS）才能被识别——播放不受此限制，识别受。
 
 ### 表格 `table`
 

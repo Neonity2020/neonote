@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link2, Music2, Plus, Trash2 } from 'lucide-react'
+import { Link2, Music2, Plus, ScanText, Trash2 } from 'lucide-react'
 import type { Block } from '@neonity/notion-clone-shared'
 import { useStore } from '@/store'
 import { focusSoon, requestFocus } from '@/lib/caret'
+import { transcribeAudio } from '@/lib/transcribe'
 
 interface AudioBlockProps {
   block: Block
@@ -33,6 +34,10 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
   const [draft, setDraft] = useState(src)
   const [editing, setEditing] = useState(!src)
   const [error, setError] = useState('')
+  const [transcribing, setTranscribing] = useState(false)
+  const [progressLabel, setProgressLabel] = useState<string | null>(null)
+  const [transcriptError, setTranscriptError] = useState('')
+  const transcript = block.content.transcript ?? ''
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -76,6 +81,32 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
   const addParagraph = async (): Promise<void> => {
     const next = await insertBlockAfter(block.id, 'paragraph', { text: '' })
     if (next) requestFocus(next.id, 0)
+  }
+
+  // 本地 Whisper 识别：转写文本存进 content.transcript，并镜像到 content.text
+  // 让搜索能命中音频内容。
+  const transcribe = async (): Promise<void> => {
+    if (!src || transcribing) return
+    setTranscribing(true)
+    setTranscriptError('')
+    setProgressLabel('正在准备识别模型…')
+    try {
+      const text = await transcribeAudio(src, (status) => {
+        setProgressLabel(
+          status.phase === 'loading' ? `下载识别模型 ${status.progress ?? 0}%（仅首次）` : '识别中…'
+        )
+      })
+      if (text) {
+        updateBlockLocal(block.id, { ...block.content, transcript: text, text })
+      } else {
+        setTranscriptError('未识别到语音内容')
+      }
+    } catch (err) {
+      setTranscriptError(err instanceof Error ? err.message : '识别失败')
+    } finally {
+      setTranscribing(false)
+      setProgressLabel(null)
+    }
   }
 
   return (
@@ -128,6 +159,30 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
+          <div className="mt-2 flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              className="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent disabled:cursor-default disabled:opacity-50"
+              disabled={transcribing}
+              onClick={() => void transcribe()}
+            >
+              <ScanText className="h-3.5 w-3.5" /> {transcript ? '重新识别' : '识别文字'}
+            </button>
+            {transcribing && progressLabel && (
+              <span className="min-w-0 truncate text-xs text-muted-foreground">{progressLabel}</span>
+            )}
+            {!transcribing && transcriptError && (
+              <span className="min-w-0 truncate text-xs text-destructive" title={transcriptError}>
+                {transcriptError}
+              </span>
+            )}
+          </div>
+          {transcript && (
+            <div className="mt-2 rounded-md bg-muted/40 px-3 py-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">转写</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{transcript}</p>
+            </div>
+          )}
         </>
       )}
 
