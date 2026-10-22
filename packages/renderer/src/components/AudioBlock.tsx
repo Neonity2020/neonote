@@ -37,6 +37,7 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
   const [transcribing, setTranscribing] = useState(false)
   const [progressLabel, setProgressLabel] = useState<string | null>(null)
   const [transcriptError, setTranscriptError] = useState('')
+  const [streamText, setStreamText] = useState('')
   const transcript = block.content.transcript ?? ''
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -104,15 +105,28 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
     if (!src || transcribing) return
     setTranscribing(true)
     setTranscriptError('')
+    setStreamText('')
     setProgressLabel('正在准备识别模型…')
     try {
       const text = await transcribeAudio(src, (status) => {
+        if (status.delta !== undefined) {
+          // 最终一轮的流式增量：实时拼进预览。
+          setStreamText((prev) => prev + status.delta)
+          setProgressLabel('识别中…')
+          return
+        }
+        // 阶段切换（探针 / 镜像重试）复位累计文本。
+        setStreamText('')
         setProgressLabel(
           status.phase === 'loading' ? `下载识别模型 ${status.progress ?? 0}%（仅首次）` : '识别中…'
         )
       })
       if (text) {
-        updateBlockLocal(block.id, { ...block.content, transcript: text, text })
+        const next = { ...block.content, transcript: text, text }
+        // 直接落库：识别进行中用户可能切换页面（组件卸载、store 换页），
+        // 只走 updateBlockLocal 会把结果写丢；先持久化再尝试同步当前 UI。
+        void window.api.updateBlock({ id: block.id, content: next })
+        updateBlockLocal(block.id, next)
       } else {
         setTranscriptError('未识别到语音内容')
       }
@@ -121,6 +135,7 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
     } finally {
       setTranscribing(false)
       setProgressLabel(null)
+      setStreamText('')
     }
   }
 
@@ -192,10 +207,15 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
               </span>
             )}
           </div>
-          {transcript && (
+          {(transcript || streamText) && (
             <div className="mt-2 rounded-md bg-muted/40 px-3 py-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">转写</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{transcript}</p>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                转写{transcribing && <span className="ml-1 normal-case">（实时输出中…）</span>}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
+                {transcribing ? streamText || transcript : transcript}
+                {transcribing && <span className="animate-pulse">▍</span>}
+              </p>
             </div>
           )}
         </>

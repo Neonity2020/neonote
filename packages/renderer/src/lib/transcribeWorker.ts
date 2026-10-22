@@ -4,6 +4,7 @@
 // 消息协议：
 //   主线程 → worker: { type: 'transcribe', id, audio: Float32Array, mirror?: boolean }
 //   worker → 主线程: { type: 'status', phase: 'loading' | 'decoding', progress?: number }
+//                    | { type: 'partial', id, delta }   // 最终一轮的流式增量文本
 //                    | { type: 'result', id, text }
 //                    | { type: 'error', id, message }
 
@@ -18,6 +19,8 @@ const MIRROR_HOST = 'https://hf-mirror.com'
 
 interface AsrPipeline {
   (audio: Float32Array, options: Record<string, unknown>): Promise<{ text?: string } | string>
+  /** 由 pipeline 基类暴露，WhisperTextStreamer 需要。 */
+  tokenizer?: unknown
 }
 
 let asr: AsrPipeline | null = null
@@ -90,13 +93,28 @@ function uniqueRatio(text: string): number {
   return new Set(text).size / text.length
 }
 
-async function transcribeWith(asr: NonNullable<AsrPipeline>, audio: Float32Array, language: 'chinese' | 'english'): Promise<string> {
-  const output = await asr(audio, {
+async function transcribeWith(
+  asr: NonNullable<AsrPipeline>,
+  audio: Float32Array,
+  language: 'chinese' | 'english',
+  onDelta?: (piece: string) => void
+): Promise<string> {
+  const options: Record<string, unknown> = {
     language,
     task: 'transcribe',
     chunk_length_s: 30,
     stride_length_s: 5
-  })
+  }
+  // 最终一轮带流式 streamer（探针轮不带），token 生成时逐段回调。
+  if (onDelta && asr.tokenizer) {
+    const { WhisperTextStreamer } = await import('@huggingface/transformers')
+    options.streamer = new WhisperTextStreamer(asr.tokenizer as never, {
+      callback_function: (piece: string): void => {
+        if (piece) onDelta(piece)
+      }
+    })
+  }
+  const output = await asr(audio, options)
   return textOf(output)
 }
 
@@ -112,11 +130,14 @@ self.onmessage = async (event: MessageEvent<TranscribeRequest>): Promise<void> =
     const probeAudio = msg.audio.length > PROBE_SAMPLES ? msg.audio.subarray(0, PROBE_SAMPLES) : msg.audio
     const zhProbe = await transcribeWith(asr, probeAudio, 'chinese')
     const isChinese = containsHan(zhProbe) && uniqueRatio(zhProbe) >= MIN_UNIQUE_RATIO
+    const long = msg.audio.length > PROBE_SAMPLES
+    const sendDelta = (piece: string): void => post({ type: 'partial', id: msg.id, delta: piece })
     let text: string
     if (isChinese) {
-      text = msg.audio.length > PROBE_SAMPLES ? await transcribeWith(asr, msg.audio, 'chinese') : zhProbe
+      text = long ? await transcribeWith(asr, msg.audio, 'chinese', sendDelta) : zhProbe
     } else {
-      text = msg.audio.length > PROBE_SAMPLES ? await transcribeWith(asr, msg.audio, 'english') : await transcribeWith(asr, probeAudio, 'english')
+      // 英文路径的探针结果是强制的中文（弃用），最终轮重新转写并流式输出。
+      text = await transcribeWith(asr, long ? msg.audio : probeAudio, 'english', sendDelta)
     }
     post({ type: 'result', id: msg.id, text })
   } catch (error) {

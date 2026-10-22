@@ -6,6 +6,8 @@
 export interface TranscribeStatus {
   phase: 'loading' | 'decoding'
   progress?: number
+  /** 流式增量文本：最终一轮转写过程中逐段到达，拼起来是实时预览。 */
+  delta?: string
 }
 
 type StatusCallback = (status: TranscribeStatus) => void
@@ -20,6 +22,7 @@ interface PendingRun {
 
 type WorkerMessage =
   | { type: 'status'; phase: 'loading' | 'decoding'; progress?: number }
+  | { type: 'partial'; id: number; delta: string }
   | { type: 'result'; id: number; text: string }
   | { type: 'error'; id: number; message: string }
 
@@ -34,6 +37,11 @@ function getWorker(): Worker {
       const msg = event.data
       if (msg.type === 'status') {
         for (const run of pending.values()) run.onStatus?.(msg)
+        return
+      }
+      if (msg.type === 'partial') {
+        // 不带 delta 的 status 只会复位累计文本；增量只发给对应请求。
+        pending.get(msg.id)?.onStatus?.({ phase: 'decoding', delta: msg.delta })
         return
       }
       const run = pending.get(msg.id)

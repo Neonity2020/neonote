@@ -6,6 +6,8 @@
 export interface TranscribeStatus {
   phase: 'loading' | 'decoding'
   progress?: number
+  /** 流式增量文本：最终一轮转写过程中逐段到达，拼起来是实时预览。 */
+  delta?: string
 }
 
 type StatusCallback = (status: TranscribeStatus) => void
@@ -20,6 +22,7 @@ interface PendingRun {
 
 type WorkerMessage =
   | { type: 'status'; phase: 'loading' | 'decoding'; progress?: number }
+  | { type: 'partial'; id: number; delta: string }
   | { type: 'result'; id: number; text: string }
   | { type: 'error'; id: number; message: string }
 
@@ -34,6 +37,11 @@ function getWorker(): Worker {
       const msg = event.data
       if (msg.type === 'status') {
         for (const run of pending.values()) run.onStatus?.(msg)
+        return
+      }
+      if (msg.type === 'partial') {
+        // 不带 delta 的 status 只会复位累计文本；增量只发给对应请求。
+        pending.get(msg.id)?.onStatus?.({ phase: 'decoding', delta: msg.delta })
         return
       }
       const run = pending.get(msg.id)
@@ -59,16 +67,24 @@ function usingMirror(): boolean {
   }
 }
 
-/** 取回音频并解码成 16kHz 单声道采样（Whisper 的输入格式）。 */
-async function decodeAudio(url: string): Promise<Float32Array> {
-  let buffer: ArrayBuffer
+/** 取回音频字节：先浏览器直连（外链带 CORS 头时最快），失败再经应用读回
+ * （上传的资产是 R2 公网 URL 或 nc-asset://，浏览器 fetch 不到，但应用
+ * 自己能读）。两条路都失败才算取不回。 */
+async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
   try {
     const response = await fetch(url)
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    buffer = await response.arrayBuffer()
+    if (response.ok) return await response.arrayBuffer()
   } catch {
-    throw new Error('无法获取音频文件：链接需允许跨域访问（CORS）且可直接下载')
+    // 落到应用读回路径
   }
+  const viaApp = await window.api.fetchAssetBytes(url)
+  if (viaApp) return viaApp.data
+  throw new Error('无法获取音频文件：外链需允许跨域访问（CORS）且可直接下载')
+}
+
+/** 取回音频并解码成 16kHz 单声道采样（Whisper 的输入格式）。 */
+async function decodeAudio(url: string): Promise<Float32Array> {
+  const buffer = await fetchAudioBuffer(url)
   // OfflineAudioContext 会把解码结果重采样到自身的采样率，一步得到 16kHz。
   const context = new OfflineAudioContext(1, 1, 16000)
   const decoded = await context.decodeAudioData(buffer)
