@@ -63,13 +63,28 @@ export function Editor(): JSX.Element {
     setTitle(page?.title ?? '')
   }, [currentPageId, page?.title])
 
-  // Auto-resize title textarea as the user types
+  // Keep the title tall enough both when its text changes and when the editor
+  // width changes. A width change can add wrapped lines without changing title.
   useEffect(() => {
     const ta = titleRef.current
-    if (ta) {
+    if (!ta) return
+
+    const resize = (): void => {
       ta.style.height = 'auto'
       ta.style.height = `${ta.scrollHeight}px`
     }
+
+    resize()
+    let previousWidth = ta.clientWidth
+    const observer = new ResizeObserver(() => {
+      const width = ta.clientWidth
+      if (width === previousWidth) return
+      previousWidth = width
+      resize()
+    })
+    observer.observe(ta)
+
+    return () => observer.disconnect()
   }, [title])
 
   useEffect(() => {
