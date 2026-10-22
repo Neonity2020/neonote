@@ -32,6 +32,7 @@ export function Editor(): JSX.Element {
   const currentPageId = useStore((s) => s.currentPageId)
   const blocks = useStore((s) => s.blocks)
   const blocksLoading = useStore((s) => s.blocksLoading)
+  const selectPage = useStore((s) => s.selectPage)
   const renamePage = useStore((s) => s.renamePage)
   const setPageIcon = useStore((s) => s.setPageIcon)
   const setPageCover = useStore((s) => s.setPageCover)
@@ -41,6 +42,13 @@ export function Editor(): JSX.Element {
   const setBlocksOrder = useStore((s) => s.setBlocksOrder)
 
   const page = pages.find((p) => p.id === currentPageId)
+  const childPages = useMemo(
+    () =>
+      pages
+        .filter((candidate) => candidate.parentId === page?.id)
+        .sort((a, b) => a.position - b.position),
+    [page?.id, pages]
+  )
 
   const [title, setTitle] = useState(page?.title ?? '')
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -299,6 +307,26 @@ export function Editor(): JSX.Element {
         spellCheck={false}
         className="w-full resize-none overflow-hidden bg-transparent pb-4 text-[38px] font-bold leading-tight outline-none placeholder:text-muted-foreground/30"
       />
+
+      {childPages.length > 0 && (
+        <section className="mb-4 space-y-0.5" aria-label="下级页面">
+          {childPages.map((childPage) => (
+            <button
+              key={childPage.id}
+              type="button"
+              className="group flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-accent/60"
+              onClick={() => void selectPage(childPage.id)}
+            >
+              <span className="flex size-5 shrink-0 items-center justify-center text-base">
+                {childPage.icon ?? <FileText className="size-4 text-muted-foreground" />}
+              </span>
+              <span className="min-w-0 truncate underline decoration-muted-foreground/50 underline-offset-4 group-hover:decoration-foreground">
+                {childPage.title || '无标题'}
+              </span>
+            </button>
+          ))}
+        </section>
+      )}
 
       {blocksLoading ? (
         <div className="py-8 text-sm text-muted-foreground">加载中…</div>

@@ -9,10 +9,14 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { Button } from './components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip'
 import { CONTENT_WIDTHS } from '@neonity/notion-clone-shared'
+import { syncPageFavicon } from './lib/favicon'
 
 export default function App(): JSX.Element {
   const init = useStore((s) => s.init)
   const currentPageId = useStore((s) => s.currentPageId)
+  const currentPageIcon = useStore(
+    (s) => s.pages.find((page) => page.id === s.currentPageId)?.icon
+  )
   const createPage = useStore((s) => s.createPage)
   const refreshFromAi = useStore((s) => s.refreshFromAi)
 
@@ -27,11 +31,15 @@ export default function App(): JSX.Element {
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
-
   useEffect(() => {
     void init()
     void loadSettings().finally(() => setReady(true))
   }, [init, loadSettings])
+
+  useEffect(() => {
+    syncPageFavicon(currentPageIcon)
+    return () => syncPageFavicon(null)
+  }, [currentPageIcon])
 
   // Pick up settings changed by the main process or by another window.
   useEffect(() => {

@@ -8,11 +8,15 @@ import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 import { CONTENT_WIDTHS } from '~/lib/shared'
+import { syncPageFavicon } from '~/lib/favicon'
 
 // Web 版基于 Electron 版 App 复刻，去掉了 AI 助手入口（Web 端暂无 AI 后端）。
 export default function App(): JSX.Element {
   const init = useStore((s) => s.init)
   const currentPageId = useStore((s) => s.currentPageId)
+  const currentPageIcon = useStore(
+    (s) => s.pages.find((page) => page.id === s.currentPageId)?.icon
+  )
   const createPage = useStore((s) => s.createPage)
 
   const loadSettings = useSettings((s) => s.load)
@@ -25,11 +29,15 @@ export default function App(): JSX.Element {
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
-
   useEffect(() => {
     void init()
     void loadSettings().finally(() => setReady(true))
   }, [init, loadSettings])
+
+  useEffect(() => {
+    syncPageFavicon(currentPageIcon)
+    return () => syncPageFavicon(null)
+  }, [currentPageIcon])
 
   // Pick up settings changed by the main process or by another window.
   useEffect(() => {
