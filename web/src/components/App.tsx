@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Menu, Plus } from 'lucide-react'
 import { useStore } from '~/store'
 import { useSettings } from '~/settingsStore'
 import { Sidebar } from './Sidebar'
@@ -26,6 +26,7 @@ export default function App(): JSX.Element {
 
   const [ready, setReady] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
@@ -54,6 +55,22 @@ export default function App(): JSX.Element {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  // Any page navigation (row click, search hit, page creation) closes the mobile
+  // drawer. The state is invisible on md+, so firing there is harmless.
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [currentPageId])
+
+  // Escape closes the mobile drawer.
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setMobileNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mobileNavOpen])
+
   // An explicit choice wins; "system" follows the OS preference.
   const dark = theme === 'dark' || (theme === 'system' && systemDark)
 
@@ -79,8 +96,22 @@ export default function App(): JSX.Element {
           dark={dark}
           onToggleTheme={() => void updateSettings({ theme: dark ? 'light' : 'dark' })}
           onOpenSettings={() => setSettingsOpen(true)}
+          mobileOpen={mobileNavOpen}
+          onMobileClose={() => setMobileNavOpen(false)}
         />
         <div className="relative isolate h-full min-w-0 flex-1">
+          {/* Mobile-only hamburger: sits over the cover / top padding zone, Notion-style. */}
+          {!mobileNavOpen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="打开侧边栏"
+              className="absolute left-2 top-2 z-30 bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm md:hidden"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <Menu />
+            </Button>
+          )}
           <main className="h-full overflow-y-auto">
             {!ready ? null : currentPageId ? (
               // Remount the editor per page, so per-page state cannot leak between pages.

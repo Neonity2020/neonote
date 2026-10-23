@@ -51,9 +51,12 @@ interface SidebarProps {
   dark: boolean
   onToggleTheme: () => void
   onOpenSettings: () => void
+  /** Mobile drawer state. On md+ screens both props are inert: the sidebar stays a static column. */
+  mobileOpen: boolean
+  onMobileClose: () => void
 }
 
-export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): JSX.Element {
+export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMobileClose }: SidebarProps): JSX.Element {
   const pages = useStore((s) => s.pages)
   const selectPage = useStore((s) => s.selectPage)
   const createPage = useStore((s) => s.createPage)
@@ -294,7 +297,23 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-muted/30">
+    <>
+      {/* Mobile backdrop; the aside below is a static column on md+, so the backdrop hides there. */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={onMobileClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={cn(
+          'flex h-full w-64 shrink-0 flex-col border-r bg-muted/30',
+          'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:shadow-xl',
+          'max-md:transition-transform max-md:duration-200',
+          mobileOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'
+        )}
+      >
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <span className="flex h-5 w-5 items-center justify-center rounded bg-foreground text-[10px] font-bold text-background">
@@ -441,7 +460,8 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
           <TooltipContent>设置</TooltipContent>
         </Tooltip>
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }
 
