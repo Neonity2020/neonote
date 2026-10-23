@@ -27,6 +27,12 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })]
   },
   renderer: {
+    // The whisper worker (and transformers.js → onnxruntime-web beneath it) relies
+    // on dynamic imports and nested `new Worker(new URL(...))` chunks, which cannot
+    // be emitted as IIFE. ES matches the `{ type: 'module' }` worker construction.
+    worker: {
+      format: 'es'
+    },
     // The renderer lives in packages/renderer, not in src/renderer.
     root: 'packages/renderer',
     resolve: {
