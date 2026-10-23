@@ -6,7 +6,7 @@
   "type": "module",
   "description": "Web version of Notion Clone: TanStack Start + better-auth + drizzle + Turso, deployed to Cloudflare Workers",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "bash dev.sh",
     "build": "vite build && tsc --noEmit",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
