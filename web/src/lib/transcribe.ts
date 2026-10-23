@@ -59,6 +59,23 @@ function getWorker(): Worker {
   return worker
 }
 
+// Whisper 的中文输出常简繁混杂（训练语料两种都有），转写文本统一转成简体。
+// opencc-js 懒加载（只在识别时用到），加载失败则原样返回不阻塞识别。
+let toSimplified: ((text: string) => string) | null | undefined
+
+async function ensureSimplifiedConverter(): Promise<((text: string) => string) | null> {
+  if (toSimplified !== undefined) return toSimplified
+  try {
+    const OpenCC = (await import('opencc-js')) as unknown as {
+      Converter: (options: { from: string; to: string }) => (text: string) => string
+    }
+    toSimplified = OpenCC.Converter({ from: 't', to: 'cn' })
+  } catch {
+    toSimplified = null
+  }
+  return toSimplified
+}
+
 function usingMirror(): boolean {
   try {
     return localStorage.getItem(MIRROR_KEY) === 'mirror'
@@ -116,14 +133,18 @@ function runInWorker(audio: Float32Array, mirror: boolean, onStatus?: StatusCall
  */
 export async function transcribeAudio(url: string, onStatus?: StatusCallback): Promise<string> {
   const audio = await decodeAudio(url)
+  const converter = await ensureSimplifiedConverter()
+  // 简繁转换对纯英文是恒等变换，统一处理无副作用；增量与终稿都过一遍，
+  // 终稿全量转换兜底增量在词边界被拆开的罕见误转。
+  const simplify = (text: string): string => (converter ? converter(text) : text)
   let phase: TranscribeStatus['phase'] = 'loading'
   const trackStatus: StatusCallback = (status) => {
     phase = status.phase
-    onStatus?.(status)
+    onStatus?.(status.delta !== undefined ? { ...status, delta: simplify(status.delta) } : status)
   }
   const mirror = usingMirror()
   try {
-    return await runInWorker(audio.slice(), mirror, trackStatus)
+    return simplify(await runInWorker(audio.slice(), mirror, trackStatus))
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     // 模型下载阶段失败且还没用过镜像：换 hf-mirror.com 再试一次。
@@ -133,7 +154,7 @@ export async function transcribeAudio(url: string, onStatus?: StatusCallback): P
       } catch {
         // 没有 localStorage 也照样重试
       }
-      return runInWorker(audio.slice(), true, trackStatus)
+      return simplify(await runInWorker(audio.slice(), true, trackStatus))
     }
     throw new Error(message)
   }

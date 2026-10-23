@@ -19,3 +19,8 @@ declare global {
 }
 
 export {}
+
+// opencc-js 未自带类型声明；实际用到的只有 Converter。
+declare module 'opencc-js' {
+  export function Converter(options: { from: string; to: string }): (text: string) => string
+}
