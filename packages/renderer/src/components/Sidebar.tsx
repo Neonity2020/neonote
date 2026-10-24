@@ -39,8 +39,8 @@ import {
   DropdownMenuTrigger
 } from './ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
-import { WELCOME_PAGE_TITLE } from '@neonity/notion-clone-shared'
-import type { PageMeta, SearchResult } from '@neonity/notion-clone-shared'
+import { WELCOME_PAGE_TITLE } from '@neonity/neonote-shared'
+import type { PageMeta, SearchResult } from '@neonity/neonote-shared'
 
 /** Indent width per level; the row padding and the drag preview must use the same value. */
 const INDENT = 14
@@ -300,7 +300,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
           <span className="flex h-5 w-5 items-center justify-center rounded bg-foreground text-[10px] font-bold text-background">
             N
           </span>
-          Notion Clone
+          Neonote
         </div>
         <Tooltip>
           <TooltipTrigger asChild>

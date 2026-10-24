@@ -1,5 +1,5 @@
 {
-  "name": "notion-clone",
+  "name": "neonote",
   "version": "0.1.0",
   "private": true,
   "description": "Local-first block note-taking app (Notion clone) built with Electron + Vite + shadcn/ui + SQLite",
@@ -21,7 +21,7 @@
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^1.2.0",
     "@earendil-works/pi-ai": "1.4.0",
-    "@neonity/notion-clone-shared": "^0.1.0",
+    "@neonity/neonote-shared": "^0.1.0",
     "aws4fetch": "^1.0.20"
   },
   "devDependencies": {
@@ -35,8 +35,8 @@
   },
   "author": "Neonity",
   "build": {
-    "appId": "com.example.notion-clone",
-    "productName": "Notion Clone",
+    "appId": "com.neonity.neonote",
+    "productName": "Neonote",
     "copyright": "Copyright © 2026",
     "directories": {
       "output": "dist"
@@ -62,7 +62,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Notion Clone"
+      "shortcutName": "Neonote"
     },
     "mac": {
       "target": [

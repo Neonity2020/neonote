@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Database, LayoutGrid, Table2, Plus, Trash2 } from 'lucide-react'
-import { createDatabaseData, databaseToText, type Block, type DatabaseData, type DatabasePropertyType } from '@neonity/notion-clone-shared'
+import { createDatabaseData, databaseToText, type Block, type DatabaseData, type DatabasePropertyType } from '@neonity/neonote-shared'
 import { useStore } from '@/store'
 import { consumeCellFocus, requestFocus } from '@/lib/caret'
 

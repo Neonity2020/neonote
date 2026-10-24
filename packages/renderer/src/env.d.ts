@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { AiApi, NotionApi, SettingsApi } from '@neonity/notion-clone-shared'
+import type { AiApi, NotionApi, SettingsApi } from '@neonity/neonote-shared'
 
 declare global {
   interface Window {

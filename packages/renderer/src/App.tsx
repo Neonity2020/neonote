@@ -8,7 +8,7 @@ import { AssistantPanel } from './components/AssistantPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { Button } from './components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip'
-import { CONTENT_WIDTHS } from '@neonity/notion-clone-shared'
+import { CONTENT_WIDTHS } from '@neonity/neonote-shared'
 import { syncPageFavicon } from './lib/favicon'
 
 export default function App(): JSX.Element {

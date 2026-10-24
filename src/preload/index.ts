@@ -16,7 +16,7 @@ import type {
   SettingsApi,
   UpdateBlockInput,
   UpdatePageInput
-} from '@neonity/notion-clone-shared'
+} from '@neonity/neonote-shared'
 
 /**
  * The renderer only ever sees these three surfaces, exposed through

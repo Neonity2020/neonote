@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Plus } from 'lucide-react'
-import type { Block, BlockType } from '@neonity/notion-clone-shared'
+import type { Block, BlockType } from '@neonity/neonote-shared'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { placeholderFor, type BlockTypeMeta } from '@/lib/blockTypes'

@@ -1,5 +1,5 @@
-import type { PageMeta, PageTitleIndex } from '@neonity/notion-clone-shared'
-import { buildPageTitleIndex, lookupPageByTitle, parseWikiLinks } from '@neonity/notion-clone-shared'
+import type { PageMeta, PageTitleIndex } from '@neonity/neonote-shared'
+import { buildPageTitleIndex, lookupPageByTitle, parseWikiLinks } from '@neonity/neonote-shared'
 import { getBlockElement, getCaretOffset, setCaretOffset } from './caret'
 
 /**

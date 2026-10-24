@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import * as ContextMenu from '@radix-ui/react-context-menu'
 import { Copy, ImagePlus, Plus, Trash2, Type } from 'lucide-react'
-import type { Block } from '@neonity/notion-clone-shared'
+import type { Block } from '@neonity/neonote-shared'
 import { useStore } from '@/store'
 import { focusSoon, requestFocus } from '@/lib/caret'
 

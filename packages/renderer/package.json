@@ -1,7 +1,7 @@
 {
-  "name": "@neonity/notion-clone-ui",
+  "name": "@neonity/neonote-ui",
   "version": "0.1.0",
-  "description": "Notion Clone 前端 UI 包（React）：块编辑器、侧边栏、AI 助手与设置面板。宿主需注入 window.api / window.ai / window.settings 桥（见 @neonity/notion-clone-shared）",
+  "description": "Neonote 前端 UI 包（React）：块编辑器、侧边栏、AI 助手与设置面板。宿主需注入 window.api / window.ai / window.settings 桥（见 @neonity/neonote-shared）",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -22,7 +22,7 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@huggingface/transformers": "^4.3.1",
-    "@neonity/notion-clone-shared": "^0.1.0",
+    "@neonity/neonote-shared": "^0.1.0",
     "@radix-ui/react-context-menu": "^2.2.2",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
     "@radix-ui/react-separator": "^1.1.1",

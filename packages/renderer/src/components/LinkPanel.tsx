@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight, FileText, Link2, Plus } from 'lucide-react'
-import type { PageLinks } from '@neonity/notion-clone-shared'
+import type { PageLinks } from '@neonity/neonote-shared'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 

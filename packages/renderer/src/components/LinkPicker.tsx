@@ -1,4 +1,4 @@
-import type { PageMeta } from '@neonity/notion-clone-shared'
+import type { PageMeta } from '@neonity/neonote-shared'
 import { FileText, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 

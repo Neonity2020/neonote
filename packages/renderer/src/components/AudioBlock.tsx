@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link2, Music2, Plus, ScanText, Trash2 } from 'lucide-react'
-import type { Block } from '@neonity/notion-clone-shared'
+import type { Block } from '@neonity/neonote-shared'
 import { useStore } from '@/store'
 import { focusSoon, requestFocus } from '@/lib/caret'
 import { transcribeAudio } from '@/lib/transcribe'

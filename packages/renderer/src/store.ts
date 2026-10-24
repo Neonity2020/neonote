@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { Block, BlockContent, BlockType, PageMeta, PageUpdateResult } from '@neonity/notion-clone-shared'
-import { createTableData, tableToText, createDatabaseData, databaseToText } from '@neonity/notion-clone-shared'
+import type { Block, BlockContent, BlockType, PageMeta, PageUpdateResult } from '@neonity/neonote-shared'
+import { createTableData, tableToText, createDatabaseData, databaseToText } from '@neonity/neonote-shared'
 import { requestScrollTo } from '@/lib/caret'
 
 /** Debounce window for persisting an edit, in ms. A burst of typing costs one write. */

@@ -12,7 +12,7 @@ import {
   type ContentWidth,
   type DeepPartial,
   type ThemeMode
-} from '@neonity/notion-clone-shared'
+} from '@neonity/neonote-shared'
 
 /**
  * Settings service: every section (theme / editor / ai) is serialized into the

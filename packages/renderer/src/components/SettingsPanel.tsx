@@ -25,7 +25,7 @@ import {
   type ContentWidth,
   type EditorFontSize,
   type ThemeMode
-} from '@neonity/notion-clone-shared'
+} from '@neonity/neonote-shared'
 
 type SectionId = 'appearance' | 'ai' | 'data' | 'about'
 
@@ -558,7 +558,7 @@ function AboutSection(): JSX.Element {
           N
         </span>
         <div>
-          <p className="text-sm font-semibold">Notion Clone</p>
+          <p className="text-sm font-semibold">Neonote</p>
           <p className="text-xs text-muted-foreground">
             本地优先的块笔记应用,数据全在本机,AI 助手由 Pi SDK 驱动。
           </p>

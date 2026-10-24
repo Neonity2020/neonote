@@ -15,7 +15,7 @@ import {
   Type,
   type LucideIcon
 } from 'lucide-react'
-import type { BlockType } from '@neonity/notion-clone-shared'
+import type { BlockType } from '@neonity/neonote-shared'
 
 /** One entry of the block type catalogue, as shown in the slash menu. */
 export interface BlockTypeMeta {

@@ -23,7 +23,7 @@ export type BlockType =
   | 'database'
 
 /** Title of the auto-seeded welcome page. Used to identify it for "reset examples". */
-export const WELCOME_PAGE_TITLE = '欢迎使用 Notion Clone'
+export const WELCOME_PAGE_TITLE = '欢迎使用 Neonote'
 
 /** A simple table: plain-text cells, no merging or styling, with an optional header row. */
 export interface TableData {

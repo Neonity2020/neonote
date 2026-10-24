@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { AwsClient } from 'aws4fetch'
-import type { AssetBytes, SaveImageInput, SavedImage } from '@neonity/notion-clone-shared'
+import type { AssetBytes, SaveImageInput, SavedImage } from '@neonity/neonote-shared'
 
 /**
  * Custom protocol used to serve local assets to the renderer.
