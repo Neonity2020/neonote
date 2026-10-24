@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  Github,
   Moon,
   MoreHorizontal,
   Pencil,
@@ -466,14 +467,30 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
       <Separator />
       <div className="flex items-center justify-between gap-2 px-2 py-1.5">
         <SyncStatusBadge count={pages.length} />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="shrink-0">
-              <Settings />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>设置</TooltipContent>
-        </Tooltip>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href="https://github.com/Neonity2020/neonote"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="GitHub 仓库"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <Github className="size-4" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent>GitHub 仓库</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="shrink-0">
+                <Settings />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>设置</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
       </aside>
     </>
