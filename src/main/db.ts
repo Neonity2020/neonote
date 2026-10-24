@@ -41,7 +41,7 @@ function now(): number {
 }
 
 export function initDb(): void {
-  const dbPath = join(app.getPath('userData'), 'notion-clone.db')
+  const dbPath = join(app.getPath('userData'), 'neonote.db')
   db = new DatabaseSync(dbPath)
   // WAL lets readers continue while a write is in flight, and foreign_keys is a
   // per-connection pragma that has to be enabled for the ON DELETE CASCADE

@@ -151,7 +151,7 @@ function dirSize(dir: string): { count: number; bytes: number } {
 export function getAppInfo(): AppInfo {
   const dataDir = app.getPath('userData')
   const assetsDir = getAssetsDir()
-  const dbPath = join(dataDir, 'notion-clone.db')
+  const dbPath = join(dataDir, 'neonote.db')
   let dbBytes = 0
   try {
     dbBytes = statSync(dbPath).size

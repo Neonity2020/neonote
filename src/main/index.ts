@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
 import { join } from 'path'
-import { existsSync } from 'node:fs'
+import { existsSync, renameSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { basename, extname } from 'node:path'
 import * as db from './db'
@@ -119,7 +119,32 @@ function registerAssetProtocol(): void {
   })
 }
 
-app.setName('notion-clone')
+app.setName('neonote')
+
+/**
+ * One-time migration from the old "notion-clone" identity: move the whole user
+ * data directory (db + WAL files + assets + preferences) to the neonote path,
+ * then rename the db files inside. Skipped whenever the neonote-side target
+ * already exists, so a fresh install and a migrated install are idempotent.
+ * Must run before anything touches the database or the assets directory.
+ */
+function migrateLegacyUserData(): void {
+  const newPath = app.getPath('userData')
+  const oldDir = join(app.getPath('appData'), 'notion-clone')
+  try {
+    if (!existsSync(newPath) && existsSync(oldDir)) {
+      renameSync(oldDir, newPath)
+    }
+    for (const suffix of ['', '-wal', '-shm']) {
+      const from = join(newPath, `notion-clone.db${suffix}`)
+      const to = join(newPath, `neonote.db${suffix}`)
+      if (existsSync(from) && !existsSync(to)) renameSync(from, to)
+    }
+  } catch (err) {
+    // 迁移失败不阻塞启动:以全新目录运行,旧数据原样保留可手工找回。
+    console.error('旧数据目录迁移失败,将以新目录启动:', err)
+  }
+}
 
 // A custom scheme has to be declared as privileged before the app is ready, so
 // the renderer can treat nc-asset:// like a normal, secure origin.
@@ -139,6 +164,7 @@ app.whenReady()
       const devIcon = join(__dirname, '../../build/icon.png')
       if (existsSync(devIcon)) app.dock?.setIcon(devIcon)
     }
+    migrateLegacyUserData()
     db.initDb()
     // Drop the asset files that no image block references any more.
     gcAssets(db.listImageAssetIds())
