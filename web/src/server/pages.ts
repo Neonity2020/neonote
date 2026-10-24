@@ -11,8 +11,9 @@ import {
   lookupPageByTitle,
   parseWikiLinks,
   stripWikiLinkMarkers,
-  tableToText,
+  welcomeSeedContent,
   WELCOME_PAGE_TITLE,
+  WELCOME_SEED_BLOCKS,
 } from '~/lib/shared'
 import type {
   BacklinkRef,
@@ -35,18 +36,7 @@ import {
   seedIfEmpty,
   propagateTitleRename,
   isSelfOrDescendant,
-  WELCOME_SEED_BLOCKS,
 } from './queries'
-import type { TableData } from '~/lib/shared'
-
-/** 种子块转块内容：表格摊平成纯文本存进 content.text（与 Electron 版一致）。 */
-function seedContent(seed: { text: string; checked?: boolean; table?: TableData }): BlockContent {
-  return {
-    text: seed.table ? tableToText(seed.table) : seed.text,
-    checked: seed.checked,
-    ...(seed.table ? { table: seed.table } : {}),
-  }
-}
 
 export const listPages = createServerFn({ method: 'GET' }).handler(async (): Promise<PageMeta[]> => {
   const userId = await requireUser()
@@ -212,7 +202,7 @@ export const resetWelcomePage = createServerFn({ method: 'POST' }).handler(
           id: randomUUID(),
           pageId: row.id,
           type: seed.type,
-          content: JSON.stringify(seedContent(seed)),
+          content: JSON.stringify(welcomeSeedContent(seed)),
           position,
           createdAt: ts,
           updatedAt: ts,

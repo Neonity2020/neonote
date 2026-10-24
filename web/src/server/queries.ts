@@ -10,15 +10,15 @@ import { getSession } from './session'
 import {
   parseWikiLinks,
   replaceWikiLinkTitle,
-  tableToText,
   WELCOME_PAGE_TITLE,
+  WELCOME_SEED_BLOCKS,
+  welcomeSeedContent,
 } from '~/lib/shared'
 import type {
   Block,
   BlockContent,
   BlockType,
   PageMeta,
-  TableData,
 } from '~/lib/shared'
 
 // 与 Electron 版一致：兄弟顺序间隔 1024，插入取中点，单次插入不用重排整层。
@@ -176,45 +176,7 @@ export async function insertBlockRow(userId: string, input: InsertBlockInput): P
   }
 }
 
-// ---------- 欢迎页种子（复刻 Electron 版） ----------
-
-export const WELCOME_SEED_BLOCKS: Array<{ type: BlockType; text: string; checked?: boolean; table?: TableData }> = [
-  { type: 'paragraph', text: '这是一个本地优先的块笔记应用,所有数据保存在本机 SQLite 数据库中。' },
-  { type: 'heading1', text: '快速上手' },
-  { type: 'bulletedList', text: '按 Enter 新建一个块' },
-  { type: 'bulletedList', text: '在空块中输入 / 唤起命令菜单,切换块类型' },
-  { type: 'bulletedList', text: '支持 Markdown 快捷输入:试试输入 # 加空格' },
-  { type: 'heading2', text: '支持的块类型' },
-  { type: 'numberedList', text: '段落、一到三级标题' },
-  { type: 'numberedList', text: '无序 / 有序列表' },
-  { type: 'numberedList', text: '待办事项、引用、代码块、分割线' },
-  {
-    type: 'table',
-    text: '',
-    table: {
-      header: true,
-      rows: [
-        ['块类型', '说明'],
-        ['文本', '段落、标题、列表、待办'],
-        ['表格', '就是这张表,可以增删行列'],
-      ],
-    },
-  },
-  { type: 'todo', text: '试试勾选这个待办事项', checked: false },
-  { type: 'todo', text: '已完成的事项会显示删除线', checked: true },
-  { type: 'quote', text: '块可以拖动左侧手柄重新排序。' },
-  { type: 'code', text: 'function hello() {\n  console.log("Hello, Notion Clone!")\n}' },
-  { type: 'divider', text: '' },
-  { type: 'paragraph', text: '在左侧边栏可以新建页面、组织层级、搜索全部内容。开始写作吧!' },
-]
-
-function seedContent(seed: { text: string; checked?: boolean; table?: TableData }): BlockContent {
-  return {
-    text: seed.table ? tableToText(seed.table) : seed.text,
-    checked: seed.checked,
-    ...(seed.table ? { table: seed.table } : {}),
-  }
-}
+// ---------- 欢迎页种子（种子数据本体在 shared.ts，客户端「恢复示例内容」也用） ----------
 
 // 用户第一次进入工作区时种出欢迎页（Electron 版在数据库初始化时做，Web 版按用户做）。
 export async function seedIfEmpty(userId: string): Promise<void> {
@@ -232,7 +194,7 @@ export async function seedIfEmpty(userId: string): Promise<void> {
     const blockRow = await insertBlockRow(userId, {
       pageId: created.id,
       type: seed.type,
-      content: seedContent(seed),
+      content: welcomeSeedContent(seed),
       afterId: lastId,
     })
     lastId = blockRow.id
@@ -242,12 +204,14 @@ export async function seedIfEmpty(userId: string): Promise<void> {
 /**
  * 改标题时把指向旧标题的 wiki 链接一并改写（Electron 版同名逻辑）。
  * 旧标题或新标题不唯一时跳过改写，避免链接被静默改指到同名页面。
+ * ts 允许调用方指定改写时间戳：同步推送的改名要压过客户端可能的超前时钟。
  */
 export async function propagateTitleRename(
   userId: string,
   pageId: string,
   oldTitle: string,
   newTitle: string,
+  ts: number = now(),
 ): Promise<string[]> {
   const db = getDb()
   const [dupOld] = await db
@@ -280,7 +244,6 @@ export async function propagateTitleRename(
     .where(and(eq(block.userId, userId), sql`instr(${block.content}, '[[') > 0`))
 
   const updated: string[] = []
-  const ts = now()
   const touchedPages = new Set<string>()
   for (const row of rows) {
     let content: BlockContent

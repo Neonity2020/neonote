@@ -25,6 +25,55 @@ export type BlockType =
 /** Title of the auto-seeded welcome page. Used to identify it for "reset examples". */
 export const WELCOME_PAGE_TITLE = '欢迎使用 Notion Clone'
 
+/** 欢迎页示例块种子（服务端首登播种与客户端「恢复示例内容」共用）。 */
+export const WELCOME_SEED_BLOCKS: Array<{
+  type: BlockType
+  text: string
+  checked?: boolean
+  table?: TableData
+}> = [
+  { type: 'paragraph', text: '这是一个本地优先的块笔记应用,所有数据保存在本机 SQLite 数据库中。' },
+  { type: 'heading1', text: '快速上手' },
+  { type: 'bulletedList', text: '按 Enter 新建一个块' },
+  { type: 'bulletedList', text: '在空块中输入 / 唤起命令菜单,切换块类型' },
+  { type: 'bulletedList', text: '支持 Markdown 快捷输入:试试输入 # 加空格' },
+  { type: 'heading2', text: '支持的块类型' },
+  { type: 'numberedList', text: '段落、一到三级标题' },
+  { type: 'numberedList', text: '无序 / 有序列表' },
+  { type: 'numberedList', text: '待办事项、引用、代码块、分割线' },
+  {
+    type: 'table',
+    text: '',
+    table: {
+      header: true,
+      rows: [
+        ['块类型', '说明'],
+        ['文本', '段落、标题、列表、待办'],
+        ['表格', '就是这张表,可以增删行列'],
+      ],
+    },
+  },
+  { type: 'todo', text: '试试勾选这个待办事项', checked: false },
+  { type: 'todo', text: '已完成的事项会显示删除线', checked: true },
+  { type: 'quote', text: '块可以拖动左侧手柄重新排序。' },
+  { type: 'code', text: 'function hello() {\n  console.log("Hello, Notion Clone!")\n}' },
+  { type: 'divider', text: '' },
+  { type: 'paragraph', text: '在左侧边栏可以新建页面、组织层级、搜索全部内容。开始写作吧!' },
+]
+
+/** 种子块转块内容：表格摊平成纯文本存进 content.text（与 Electron 版一致）。 */
+export function welcomeSeedContent(seed: {
+  text: string
+  checked?: boolean
+  table?: TableData
+}): BlockContent {
+  return {
+    text: seed.table ? tableToText(seed.table) : seed.text,
+    checked: seed.checked,
+    ...(seed.table ? { table: seed.table } : {}),
+  }
+}
+
 /** A simple table: plain-text cells, no merging or styling, with an optional header row. */
 export interface TableData {
   rows: string[][]
@@ -338,6 +387,41 @@ export interface SearchResult {
   pageIcon: string | null
   blockId: string | null
   snippet: string
+}
+
+// ---------- 离线同步协议（IndexedDB 本地库 ⇄ 云端状态式同步） ----------
+
+/**
+ * 删除墓碑：行级 LWW 里「删除」也带时间戳参与比较,后发生者胜。
+ * id 即被删 page/block 行的主键（客户端生成的 uuid 全局唯一）。
+ */
+export interface Tombstone {
+  id: string
+  kind: 'page' | 'block'
+  deletedAt: number
+}
+
+export interface PullChangesInput {
+  /** 上次拉取游标（所见最大 updatedAt）；服务端回传该时间之后的行。 */
+  since: number
+}
+
+export interface PullChangesResult {
+  serverTime: number
+  pages: PageMeta[]
+  blocks: Block[]
+  tombstones: Tombstone[]
+}
+
+/** 待推送的本地变更：整行 upsert + 墓碑，服务端逐行 LWW,顺序无关。 */
+export interface PushChangesInput {
+  pages: PageMeta[]
+  blocks: Block[]
+  tombstones: Tombstone[]
+}
+
+export interface PushChangesResult {
+  serverTime: number
 }
 
 /** The fields accepted when creating a page. */

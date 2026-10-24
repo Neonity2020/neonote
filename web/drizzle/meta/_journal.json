@@ -15,6 +15,13 @@
       "when": 1792702413660,
       "tag": "0001_soft_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792798710562,
+      "tag": "0002_furry_blob",
+      "breakpoints": true
     }
   ]
 }

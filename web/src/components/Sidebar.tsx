@@ -27,6 +27,7 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import { useStore } from '~/store'
+import { useSync } from '~/lib/sync-engine'
 import { cn } from '~/lib/utils'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -283,9 +284,10 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
     if (target.parentId && isSelfOrDescendant(pages, target.parentId, draggingId)) return
     if (positionUnchanged(pages, draggingId, target)) return
 
-    await movePage(draggingId, target.parentId, target.index)
-
-    // Expand a collapsed target parent, otherwise the moved page would vanish from view.
+    // Expand a collapsed target parent in the same frame as the optimistic move
+    // (movePage re-parents the row immediately): deferring the expansion to
+    // after the round trip would leave the moved row hidden under the collapsed
+    // parent for the duration of the request.
     if (target.parentId) {
       setCollapsed((prev) => {
         if (!prev.has(target.parentId as string)) return prev
@@ -294,6 +296,8 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
         return next
       })
     }
+
+    await movePage(draggingId, target.parentId, target.index)
   }
 
   return (
@@ -448,9 +452,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
 
       <Separator />
       <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-        <span className="min-w-0 truncate px-2 text-[11px] text-muted-foreground">
-          共 {pages.length} 个页面 · 本地保存
-        </span>
+        <SyncStatusBadge count={pages.length} />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} className="shrink-0">
@@ -463,6 +465,47 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
       </aside>
     </>
   )
+}
+
+/** 侧栏底部的同步状态:本地已保存,云端同步在后台进行。 */
+function SyncStatusBadge({ count }: { count: number }): JSX.Element {
+  const status = useSync((s) => s.status)
+  const pending = useSync((s) => s.pending)
+  const lastSyncedAt = useSync((s) => s.lastSyncedAt)
+
+  const label = useMemo(() => {
+    switch (status) {
+      case 'syncing':
+        return pending > 0 ? `同步中 · ${pending} 项待推` : '同步中…'
+      case 'offline':
+        return pending > 0 ? `离线 · ${pending} 项待同步` : '离线'
+      case 'unauth':
+        return '登录已过期 · 本地已保存'
+      case 'error':
+        return '同步失败 · 本地已保存'
+      default:
+        if (lastSyncedAt && Date.now() - lastSyncedAt < 60_000) return `已同步 · 共 ${count} 个页面`
+        return `已同步 ${formatTime(lastSyncedAt)} · 共 ${count} 个页面`
+    }
+  }, [status, pending, lastSyncedAt, count])
+
+  const tone =
+    status === 'offline' || status === 'unauth' || status === 'error'
+      ? 'text-amber-600 dark:text-amber-400'
+      : status === 'syncing'
+        ? 'text-muted-foreground'
+        : 'text-muted-foreground'
+
+  return (
+    <span className={cn('min-w-0 truncate px-2 text-[11px]', tone)} title={label}>
+      {label}
+    </span>
+  )
+}
+
+function formatTime(ts: number | null): string {
+  if (!ts) return ''
+  return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
 /** Makes the whole list a droppable area, so a drop into empty space lands at the end of the list. */

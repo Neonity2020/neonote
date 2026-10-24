@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core'
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 export const user = sqliteTable('user', {
@@ -60,38 +60,62 @@ export const verification = sqliteTable('verification', {
 // ---------- Workspace（复刻 Electron 版 pages/blocks 表结构，增加 userId 隔离） ----------
 
 // 兄弟顺序用小数 position，插入取中点；时间戳是 epoch 毫秒，与 PageMeta 契约一致。
-export const page = sqliteTable('page', {
-  id: text('id').primaryKey(),
-  title: text('title').notNull().default(''),
-  icon: text('icon'),
-  cover: text('cover'),
-  parentId: text('parent_id').references((): AnySQLiteColumn => page.id, {
-    onDelete: 'cascade',
-  }),
-  position: real('position').notNull().default(0),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-})
+// (userId, updatedAt) 索引服务增量拉取（updatedAt > since）。
+export const page = sqliteTable(
+  'page',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull().default(''),
+    icon: text('icon'),
+    cover: text('cover'),
+    parentId: text('parent_id').references((): AnySQLiteColumn => page.id, {
+      onDelete: 'cascade',
+    }),
+    position: real('position').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+  },
+  (t) => [index('page_user_updated_idx').on(t.userId, t.updatedAt)],
+)
 
-export const block = sqliteTable('block', {
-  id: text('id').primaryKey(),
-  pageId: text('page_id')
-    .notNull()
-    .references(() => page.id, { onDelete: 'cascade' }),
-  type: text('type').notNull().default('paragraph'),
-  // JSON TEXT 单列，块类型差异都收在 content 里（与 Electron 版一致）。
-  content: text('content').notNull().default('{}'),
-  position: real('position').notNull().default(0),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  // 冗余 userId：搜索 / 反链要全表扫描块，带这一列就不用每次 join page 判权属。
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-})
+export const block = sqliteTable(
+  'block',
+  {
+    id: text('id').primaryKey(),
+    pageId: text('page_id')
+      .notNull()
+      .references(() => page.id, { onDelete: 'cascade' }),
+    type: text('type').notNull().default('paragraph'),
+    // JSON TEXT 单列，块类型差异都收在 content 里（与 Electron 版一致）。
+    content: text('content').notNull().default('{}'),
+    position: real('position').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    // 冗余 userId：搜索 / 反链要全表扫描块，带这一列就不用每次 join page 判权属。
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+  },
+  (t) => [index('block_user_updated_idx').on(t.userId, t.updatedAt)],
+)
+
+// 同步协议的删除墓碑：硬删的 page/block 行在此留痕，其他端才能把「被删」与「还没见过」
+// 区分开。id 即被删行的主键（uuid 全局唯一），无外键——行本体已不存在。
+export const tombstone = sqliteTable(
+  'tombstone',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind', { enum: ['page', 'block'] }).notNull(),
+    deletedAt: integer('deleted_at').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+  },
+  (t) => [index('tombstone_user_deleted_idx').on(t.userId, t.deletedAt)],
+)
 
 // 图片块资产：base64 存库，通过 /api/asset/$id 路由回源（Electron 版存本地文件）。
 export const asset = sqliteTable('asset', {

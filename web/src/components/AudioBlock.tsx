@@ -38,9 +38,12 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
   const [progressLabel, setProgressLabel] = useState<string | null>(null)
   const [transcriptError, setTranscriptError] = useState('')
   const [streamText, setStreamText] = useState('')
+  const [collapsed, setCollapsed] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'fail'>('idle')
   const transcript = block.content.transcript ?? ''
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const copyTimer = useRef<number | null>(null)
 
   useEffect(() => {
     setDraft(src)
@@ -54,6 +57,10 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
       inputRef.current?.select()
     })
   }, [editing])
+
+  useEffect(() => () => {
+    if (copyTimer.current) window.clearTimeout(copyTimer.current)
+  }, [])
 
   const setRef = (el: HTMLDivElement | null): void => {
     rootRef.current = el
@@ -106,6 +113,8 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
     setTranscribing(true)
     setTranscriptError('')
     setStreamText('')
+    setCollapsed(false)
+    setCopyState('idle')
     setProgressLabel('正在准备识别模型…')
     try {
       const text = await transcribeAudio(src, (status) => {
@@ -123,9 +132,7 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
       })
       if (text) {
         const next = { ...block.content, transcript: text, text }
-        // 直接落库：识别进行中用户可能切换页面（组件卸载、store 换页），
-        // 只走 updateBlockLocal 会把结果写丢；先持久化再尝试同步当前 UI。
-        void window.api.updateBlock({ id: block.id, content: next })
+        // 本地库按块 id 全局寻址,识别完成时哪怕已切页也不会写丢。
         updateBlockLocal(block.id, next)
       } else {
         setTranscriptError('未识别到语音内容')
@@ -136,6 +143,31 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
       setTranscribing(false)
       setProgressLabel(null)
       setStreamText('')
+    }
+  }
+
+  // 一键复制转写文本；clipboard API 不可用（非安全上下文）时退回 execCommand。
+  const copyTranscript = async (): Promise<void> => {
+    if (!transcript) return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(transcript)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = transcript
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        ta.remove()
+      }
+      setCopyState('ok')
+    } catch {
+      setCopyState('fail')
+    } finally {
+      if (copyTimer.current) window.clearTimeout(copyTimer.current)
+      copyTimer.current = window.setTimeout(() => setCopyState('idle'), 1500)
     }
   }
 
@@ -209,13 +241,36 @@ export function AudioBlock({ block, registerRef, getNeighbors }: AudioBlockProps
           </div>
           {(transcript || streamText) && (
             <div className="mt-2 rounded-md bg-muted/40 px-3 py-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                转写{transcribing && <span className="ml-1 normal-case">（实时输出中…）</span>}
-              </p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
-                {transcribing ? streamText || transcript : transcript}
-                {transcribing && <span className="animate-pulse">▍</span>}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  转写{transcribing && <span className="ml-1 normal-case">（实时输出中…）</span>}
+                </p>
+                {!transcribing && transcript && (
+                  <div className="ml-auto flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                      onClick={() => void copyTranscript()}
+                    >
+                      {copyState === 'ok' ? '已复制' : copyState === 'fail' ? '复制失败' : '复制文本'}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                      onClick={() => setCollapsed((v) => !v)}
+                    >
+                      {collapsed ? '展开内容' : '折叠内容'}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {!collapsed && (
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
+                  {transcribing ? streamText || transcript : transcript}
+                  {transcribing && <span className="animate-pulse">▍</span>}
+                </p>
+              )}
+              {collapsed && <p className="mt-1 text-[11px] text-muted-foreground">已折叠</p>}
             </div>
           )}
         </>
