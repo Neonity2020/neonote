@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -42,6 +43,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { WELCOME_PAGE_TITLE } from '~/lib/shared'
 import type { PageMeta, SearchResult } from '~/lib/shared'
+import { isDailyPage } from '~/lib/daily'
 
 /** Indent width per level; the row padding and the drag preview must use the same value. */
 const INDENT = 14
@@ -62,6 +64,8 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
   const selectPage = useStore((s) => s.selectPage)
   const createPage = useStore((s) => s.createPage)
   const movePage = useStore((s) => s.movePage)
+  const activeView = useStore((s) => s.activeView)
+  const openDailyView = useStore((s) => s.openDailyView)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -117,7 +121,11 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const tree = useMemo(() => buildTree(pages), [pages])
+  // 日记页(daily- 前缀确定性 id)不进页面树,由顶部的「日记」入口进入。
+  const tree = useMemo(
+    () => buildTree(pages.filter((p) => !isDailyPage(p))),
+    [pages]
+  )
   const rows = useMemo(() => flattenTree(tree, collapsed), [tree, collapsed])
   const activeRow = activeId ? rows.find((r) => r.page.id === activeId) : undefined
 
@@ -378,7 +386,23 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between px-4 py-1">
+      <div className="mt-3 px-2">
+        <button
+          type="button"
+          onClick={() => openDailyView()}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+            activeView === 'daily'
+              ? 'bg-accent font-medium text-accent-foreground'
+              : 'hover:bg-accent/60'
+          )}
+        >
+          <CalendarDays className="size-4 shrink-0" />
+          <span>日记</span>
+        </button>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between px-4 py-1">
         <span className="text-xs font-medium text-muted-foreground">页面</span>
         <Tooltip>
           <TooltipTrigger asChild>

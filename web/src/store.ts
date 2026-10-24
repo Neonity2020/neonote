@@ -4,15 +4,22 @@ import { createTableData, tableToText, createDatabaseData, databaseToText, WELCO
 import { requestScrollTo } from '~/lib/caret'
 import * as local from '~/lib/local-db'
 import { startSync, syncNow } from '~/lib/sync-engine'
+import { dailyPageIdOf, ensureDailyPage, todayKey } from '~/lib/daily'
 
 /** 兄弟顺序间隔,与数据库/服务端一致。 */
 const POSITION_STEP = 1024
+
+/** 主区域当前展示的面:普通页面编辑器,或日记模式。 */
+export type ActiveView = 'pages' | 'daily'
 
 interface StoreState {
   pages: PageMeta[]
   currentPageId: string | null
   blocks: Block[]
   blocksLoading: boolean
+  activeView: ActiveView
+  /** 日记视图选中的天(YYYY-MM-DD);null 时视图回退到今天。 */
+  dailyDate: string | null
   /**
    * Monotonic counter bumped whenever the resolution of the existing
    * `[[title]]` links may have changed.
@@ -27,6 +34,12 @@ interface StoreState {
 
   init: () => Promise<void>
   selectPage: (id: string | null, focusBlockId?: string) => Promise<void>
+  /** 从侧边栏进入日记模式;dayKey 缺省沿用上次选中的天,再缺省为今天。 */
+  openDailyView: (dayKey?: string) => void
+  /** 日记视图内切换选中日期;该天已有日记时把编辑器指向它。 */
+  selectDailyDate: (dayKey: string) => void
+  /** 为某天创建日记页(幂等)并选中。 */
+  createDailyPage: (dayKey: string) => void
   createPage: (parentId?: string | null, title?: string) => Promise<string>
   renamePage: (id: string, title: string) => void
   setPageIcon: (id: string, icon: string | null) => void
@@ -56,6 +69,8 @@ export const useStore = create<StoreState>((set, get) => ({
   currentPageId: null,
   blocks: [],
   blocksLoading: false,
+  activeView: 'pages',
+  dailyDate: null,
   linksVersion: 0,
 
   init: async () => {
@@ -77,10 +92,43 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   selectPage: async (id, focusBlockId) => {
-    // 全部数据已在本地,切换页面即时完成。
-    set({ currentPageId: id, blocks: id ? local.blocksOf(id) : [], blocksLoading: false })
+    // 全部数据已在本地,切换页面即时完成。任何「打开某个页面」的入口
+    // (侧边栏、搜索、反链)都意味着离开日记视图回到页面编辑器。
+    set({
+      activeView: 'pages',
+      currentPageId: id,
+      blocks: id ? local.blocksOf(id) : [],
+      blocksLoading: false,
+    })
     // Arriving from a backlink: scroll the referenced block into view.
     if (focusBlockId) requestScrollTo(focusBlockId)
+  },
+
+  openDailyView: (dayKey) => {
+    const key = dayKey ?? get().dailyDate ?? todayKey()
+    set({ activeView: 'daily', dailyDate: key })
+    const page = local.pageById(dailyPageIdOf(key))
+    if (page) {
+      set({ currentPageId: page.id, blocks: local.blocksOf(page.id), blocksLoading: false })
+    }
+  },
+
+  selectDailyDate: (dayKey) => {
+    // 该天已有日记则让编辑器指向它(块编辑依赖 currentPageId);
+    // 没有则保持现状,视图按 pages 投影显示创建空态。
+    const page = local.pageById(dailyPageIdOf(dayKey))
+    set({
+      dailyDate: dayKey,
+      ...(page
+        ? { currentPageId: page.id, blocks: local.blocksOf(page.id), blocksLoading: false }
+        : null),
+    })
+  },
+
+  createDailyPage: (dayKey) => {
+    ensureDailyPage(dayKey)
+    set((s) => ({ linksVersion: s.linksVersion + 1 }))
+    get().selectDailyDate(dayKey)
   },
 
   createPage: async (parentId = null, title = '') => {

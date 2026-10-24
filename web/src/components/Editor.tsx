@@ -27,7 +27,11 @@ interface SlashState {
   filter: string
 }
 
-export function Editor(): JSX.Element {
+/**
+ * `hideHeader`:日记模式内嵌时隐藏页面题头(封面、图标、标题编辑)——
+ * 日期标题由外层 DailyNoteView 提供,页面题头在日记语境里是重复信息。
+ */
+export function Editor({ hideHeader = false }: { hideHeader?: boolean }): JSX.Element {
   const pages = useStore((s) => s.pages)
   const currentPageId = useStore((s) => s.currentPageId)
   const blocks = useStore((s) => s.blocks)
@@ -63,6 +67,7 @@ export function Editor(): JSX.Element {
   const newPageBackground = useSettings((s) => s.settings.editor.newPageBackground)
   const showNewNoteBackground =
     newPageBackground &&
+    !hideHeader &&
     !blocksLoading &&
     !title.trim() &&
     blocks.length === 1 &&
@@ -223,7 +228,7 @@ export function Editor(): JSX.Element {
           <div className="absolute inset-0 bg-gradient-to-b from-background/15 via-background/5 to-background/30 dark:from-background/45 dark:via-background/25 dark:to-background/60" />
         </div>
       )}
-      {page.cover && (
+      {page.cover && !hideHeader && (
         <figure
           className="group/cover relative h-[30vh] min-h-60 max-h-[420px] w-full overflow-hidden bg-muted bg-cover bg-center"
           style={{ backgroundImage: getCoverBackground(page.cover) }}
@@ -251,7 +256,7 @@ export function Editor(): JSX.Element {
       <div
         className={cn(
           'relative z-[1] mx-auto w-full px-20 pb-[30vh]',
-          page.cover ? 'pt-0' : 'pt-14'
+          hideHeader ? 'pt-4' : page.cover ? 'pt-0' : 'pt-14'
         )}
         style={{ maxWidth: 'var(--editor-max-width, 768px)' }}
       >
@@ -262,7 +267,7 @@ export function Editor(): JSX.Element {
           onClose={() => setCoverPickerOpen(false)}
         />
       )}
-      <div className="relative">
+      {!hideHeader && (<div className="relative">
         <div className={cn('flex items-center gap-1', page.cover ? '-mt-10 mb-8' : 'mb-1')}>
           <button
             className={cn(
@@ -291,8 +296,9 @@ export function Editor(): JSX.Element {
             onClose={() => setIconPickerOpen(false)}
           />
         )}
-      </div>
+      </div>)}
 
+      {!hideHeader && (
       <textarea
         ref={titleRef}
         value={title}
@@ -307,6 +313,7 @@ export function Editor(): JSX.Element {
         spellCheck={false}
         className="w-full resize-none overflow-hidden bg-transparent pb-4 text-[38px] font-bold leading-tight outline-none placeholder:text-muted-foreground/30"
       />
+      )}
 
       {childPages.length > 0 && (
         <section className="mb-4 space-y-0.5" aria-label="下级页面">

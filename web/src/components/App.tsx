@@ -4,6 +4,7 @@ import { useStore } from '~/store'
 import { useSettings } from '~/settingsStore'
 import { Sidebar } from './Sidebar'
 import { Editor } from './Editor'
+import { DailyNoteView } from './DailyNoteView'
 import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
@@ -14,6 +15,7 @@ import { syncPageFavicon } from '~/lib/favicon'
 export default function App(): JSX.Element {
   const init = useStore((s) => s.init)
   const currentPageId = useStore((s) => s.currentPageId)
+  const activeView = useStore((s) => s.activeView)
   const currentPageIcon = useStore(
     (s) => s.pages.find((page) => page.id === s.currentPageId)?.icon
   )
@@ -55,11 +57,12 @@ export default function App(): JSX.Element {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  // Any page navigation (row click, search hit, page creation) closes the mobile
-  // drawer. The state is invisible on md+, so firing there is harmless.
+  // Any page navigation (row click, search hit, page creation) or a switch
+  // between the page editor and the daily view closes the mobile drawer. The
+  // state is invisible on md+, so firing there is harmless.
   useEffect(() => {
     setMobileNavOpen(false)
-  }, [currentPageId])
+  }, [currentPageId, activeView])
 
   // Escape closes the mobile drawer.
   useEffect(() => {
@@ -113,7 +116,9 @@ export default function App(): JSX.Element {
             </Button>
           )}
           <main className="h-full overflow-y-auto">
-            {!ready ? null : currentPageId ? (
+            {!ready ? null : activeView === 'daily' ? (
+              <DailyNoteView />
+            ) : currentPageId ? (
               // Remount the editor per page, so per-page state cannot leak between pages.
               <Editor key={currentPageId} />
             ) : (
