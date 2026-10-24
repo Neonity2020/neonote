@@ -9,10 +9,13 @@
  * - 幂等:两台离线设备同一天各自创建的日记在同步后按行级 LWW 合并为
  *   同一页,而不是两页。
  * - position 用创建时间戳:日记页混在顶层兄弟里但被侧边栏过滤,时间戳
- *   保证它排在 allPages 尾部,不会抢走「第一页」的选中资格。
- * 页面标题只是展示文案(可被用户改掉),一切机器识别都只看 id。
+ *   保证它排在 allPages() 尾部,不会抢走「第一页」的选中资格。
+ * - 认领手动页面:标题恰为「2026年10月24日」格式的普通页面也算该天的
+ *   日记(有回链、进月历、日记视图兜底显示),但保留在侧边栏——只有
+ *   日记模式创建的(daily- 前缀)才从页面树隐藏。
  */
 import type { PageMeta } from '~/lib/shared'
+import { parseWikiLinks } from '~/lib/shared'
 import * as local from '~/lib/local-db'
 
 const DAILY_ID_PREFIX = 'daily-'
@@ -44,17 +47,109 @@ export function dailyPageIdOf(dayKey: string): string {
   return `${DAILY_ID_PREFIX}${dayKey}`
 }
 
+/** 日记模式创建的页面(daily- 前缀 id)。只有这类页面会从侧边栏页面树隐藏。 */
 export function isDailyPage(page: PageMeta): boolean {
   return page.id.startsWith(DAILY_ID_PREFIX)
 }
 
-/** 从页面 id 反解 dayKey;非日记页返回 null。 */
-export function dayKeyOfPage(page: PageMeta): string | null {
-  return isDailyPage(page) ? page.id.slice(DAILY_ID_PREFIX.length) : null
+const DAILY_TITLE_RE = /^(\d{4})年(\d{1,2})月(\d{1,2})日$/
+
+/** 标题恰为「2026年10月24日」格式的页面视作该天的日记(用户不走日记入口手动建页的常见写法)。 */
+function dayKeyFromTitle(title: string): string | null {
+  const m = DAILY_TITLE_RE.exec(title.trim())
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const dt = new Date(y, mo - 1, d)
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null
+  return dayKeyOf(dt)
 }
 
+/**
+ * 从页面反解它属于哪一天:daily- 前缀 id 优先,否则看标题是否为日期格式。
+ * 用于回链、月历圆点与日记视图兜底显示;非日记页返回 null。
+ */
+export function dayKeyOfPage(page: PageMeta): string | null {
+  if (isDailyPage(page)) return page.id.slice(DAILY_ID_PREFIX.length)
+  return dayKeyFromTitle(page.title ?? '')
+}
+
+/** 某天的日记页:daily- 前缀页优先,没有则认领标题为该日期的手动页面(取最近更新的)。 */
 export function dailyPageOf(pages: PageMeta[], dayKey: string): PageMeta | undefined {
-  return pages.find((p) => p.id === dailyPageIdOf(dayKey))
+  const byId = pages.find((p) => p.id === dailyPageIdOf(dayKey))
+  if (byId) return byId
+  return pages
+    .filter((p) => dayKeyOfPage(p) === dayKey)
+    .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+}
+
+/**
+ * 页面自身或任一祖先(沿 parentId 上溯,防环)是日记页时,返回那天的 dayKey。
+ * 日记下挂的子笔记据此也能显示「日记 · 日期」回链返回对应日期。
+ */
+export function dailyKeyOfSelfOrAncestor(page: PageMeta, pages: PageMeta[]): string | null {
+  const byId = new Map(pages.map((p) => [p.id, p]))
+  const seen = new Set<string>()
+  let cur: PageMeta | undefined = page
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id)
+    const key = dayKeyOfPage(cur)
+    if (key) return key
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined
+  }
+  return null
+}
+
+/**
+ * 反链兜底:页面在 parentId 链上不属于任何日记,但被某篇日记的 [[wiki 链接]]
+ * 引用时,视为那天的日记笔记(多篇命中取最近引用的)。双链创建的页面默认挂
+ * 顶层,「日记里链接出去的笔记」正是这个形态。
+ */
+export function dailyKeyReferencing(title: string): string | null {
+  const t = title.trim()
+  if (!t) return null
+  let best: { key: string; ts: number } | null = null
+  for (const p of local.allPages()) {
+    const key = dayKeyOfPage(p)
+    if (!key) continue
+    for (const b of local.blocksOf(p.id)) {
+      const text = b.content.text ?? ''
+      if (!text.includes('[[')) continue
+      const hit = parseWikiLinks(text).some((l) => l.title === t)
+      if (hit && (!best || b.updatedAt > best.ts)) best = { key, ts: b.updatedAt }
+    }
+  }
+  return best?.key ?? null
+}
+
+/** 手动建的日期标题页:daily- 之外被日记认领的页面,侧边栏折叠进「日记」分组。 */
+export function isTitledDailyPage(page: PageMeta): boolean {
+  return !isDailyPage(page) && dayKeyOfPage(page) !== null
+}
+
+/** 一组根页面的全部后代 id(不含根自身;防环)。 */
+export function subtreeIdsOf(pages: PageMeta[], roots: Set<string>): Set<string> {
+  const ids = new Set<string>()
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const p of pages) {
+      if (p.parentId && (roots.has(p.parentId) || ids.has(p.parentId)) && !ids.has(p.id)) {
+        ids.add(p.id)
+        grew = true
+      }
+    }
+  }
+  return ids
+}
+
+/** daily- 前缀日记页及其全部后代的 id 集合:侧边栏页面树整体隐藏这一子树(日记里建的链接页都挂在它下面)。 */
+export function dailySubtreeIds(pages: PageMeta[]): Set<string> {
+  return new Set([
+    ...pages.filter(isDailyPage).map((p) => p.id),
+    ...subtreeIdsOf(pages, new Set(pages.filter(isDailyPage).map((p) => p.id))),
+  ])
 }
 
 /** 日记页标题,如「2026年10月24日」。 */

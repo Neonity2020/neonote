@@ -43,7 +43,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { WELCOME_PAGE_TITLE } from '~/lib/shared'
 import type { PageMeta, SearchResult } from '~/lib/shared'
-import { isDailyPage } from '~/lib/daily'
+import { dailySubtreeIds, dayKeyOfPage, isTitledDailyPage, subtreeIdsOf } from '~/lib/daily'
 
 /** Indent width per level; the row padding and the drag preview must use the same value. */
 const INDENT = 14
@@ -64,8 +64,6 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
   const selectPage = useStore((s) => s.selectPage)
   const createPage = useStore((s) => s.createPage)
   const movePage = useStore((s) => s.movePage)
-  const activeView = useStore((s) => s.activeView)
-  const openDailyView = useStore((s) => s.openDailyView)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -121,10 +119,15 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // 日记页(daily- 前缀确定性 id)不进页面树,由顶部的「日记」入口进入。
+  // 不进普通页面树的:daily- 前缀日记子树,以及手动日期页面(连同其后代,
+  // 它们折叠进顶部的「日记」分组显示)。
+  const hiddenIds = useMemo(() => {
+    const titledRoots = new Set(pages.filter(isTitledDailyPage).map((p) => p.id))
+    return new Set([...dailySubtreeIds(pages), ...titledRoots, ...subtreeIdsOf(pages, titledRoots)])
+  }, [pages])
   const tree = useMemo(
-    () => buildTree(pages.filter((p) => !isDailyPage(p))),
-    [pages]
+    () => buildTree(pages.filter((p) => !hiddenIds.has(p.id))),
+    [pages, hiddenIds]
   )
   const rows = useMemo(() => flattenTree(tree, collapsed), [tree, collapsed])
   const activeRow = activeId ? rows.find((r) => r.page.id === activeId) : undefined
@@ -386,21 +389,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
         )}
       </div>
 
-      <div className="mt-3 px-2">
-        <button
-          type="button"
-          onClick={() => openDailyView()}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-            activeView === 'daily'
-              ? 'bg-accent font-medium text-accent-foreground'
-              : 'hover:bg-accent/60'
-          )}
-        >
-          <CalendarDays className="size-4 shrink-0" />
-          <span>日记</span>
-        </button>
-      </div>
+      <DailySection />
 
       <div className="mt-2 flex items-center justify-between px-4 py-1">
         <span className="text-xs font-medium text-muted-foreground">页面</span>
@@ -488,6 +477,93 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings, mobileOpen, onMob
       </div>
       </aside>
     </>
+  )
+}
+
+/**
+ * 侧边栏「日记」分组:点击标题进入日记模式;展开箭头列出手动建的日期页面
+ * (daily- 页面属于日记模式本身,不在此列),悬停行可删除。
+ */
+function DailySection(): JSX.Element {
+  const pages = useStore((s) => s.pages)
+  const activeView = useStore((s) => s.activeView)
+  const openDailyView = useStore((s) => s.openDailyView)
+  const selectPage = useStore((s) => s.selectPage)
+  const deletePage = useStore((s) => s.deletePage)
+  const [expanded, setExpanded] = useState(false)
+
+  const titled = useMemo(
+    () =>
+      pages
+        .filter(isTitledDailyPage)
+        .sort((a, b) => (dayKeyOfPage(b) ?? '').localeCompare(dayKeyOfPage(a) ?? '')),
+    [pages]
+  )
+
+  return (
+    <div className="mt-3 px-2">
+      <div
+        className={cn(
+          'flex w-full items-center gap-1 rounded-md px-1.5 py-1.5 text-sm transition-colors',
+          activeView === 'daily'
+            ? 'bg-accent font-medium text-accent-foreground'
+            : 'hover:bg-accent/60'
+        )}
+      >
+        <button
+          type="button"
+          aria-label={expanded ? '折叠日记页面列表' : '展开日记页面列表'}
+          className={cn(
+            'flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/20',
+            titled.length === 0 && 'invisible'
+          )}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        </button>
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          onClick={() => openDailyView()}
+        >
+          <CalendarDays className="size-4 shrink-0" />
+          <span className="truncate">日记</span>
+          {titled.length > 0 && (
+            <span className="ml-auto text-[11px] text-muted-foreground">{titled.length}</span>
+          )}
+        </button>
+      </div>
+      {expanded && titled.length > 0 && (
+        <div className="mt-0.5 space-y-0.5">
+          {titled.map((p) => (
+            <div
+              key={p.id}
+              className="group flex items-center gap-1 rounded-md py-1 pl-6 pr-1 text-sm transition-colors hover:bg-accent/60"
+            >
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                onClick={() => void selectPage(p.id)}
+              >
+                <span className="w-4 shrink-0 text-center text-sm">
+                  {p.icon ?? <FileText className="mx-auto h-3.5 w-3.5 text-muted-foreground" />}
+                </span>
+                <span className="min-w-0 truncate">{p.title || '无标题'}</span>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`删除日记页面 ${p.title || '无标题'}`}
+                className="h-5 w-5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                onClick={() => void deletePage(p.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

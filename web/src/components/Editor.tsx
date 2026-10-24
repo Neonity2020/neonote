@@ -8,12 +8,13 @@ import {
   type DragEndEvent
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { FileText, ImagePlus, Trash2 } from 'lucide-react'
+import { CalendarDays, FileText, ImagePlus, Trash2 } from 'lucide-react'
 import { useStore } from '~/store'
 import { useSettings } from '~/settingsStore'
 import { filterBlockTypes, type BlockTypeMeta } from '~/lib/blockTypes'
 import { focusBlock, requestCellFocus, requestFocus, setBlockElementText } from '~/lib/caret'
 import { createTableData, tableToText, createDatabaseData, databaseToText } from '~/lib/shared'
+import { dailyKeyOfSelfOrAncestor, dailyKeyReferencing, formatDailyTitle } from '~/lib/daily'
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
 import { LinkPanel } from './LinkPanel'
@@ -44,8 +45,23 @@ export function Editor({ hideHeader = false }: { hideHeader?: boolean }): JSX.El
   const updateBlockLocal = useStore((s) => s.updateBlockLocal)
   const insertBlockAfter = useStore((s) => s.insertBlockAfter)
   const setBlocksOrder = useStore((s) => s.setBlocksOrder)
+  const openDailyView = useStore((s) => s.openDailyView)
+  const linksVersion = useStore((s) => s.linksVersion)
+  const deletePage = useStore((s) => s.deletePage)
 
   const page = pages.find((p) => p.id === currentPageId)
+
+  // 日记页(或日记下挂的子笔记)在普通页面视图打开时,给出跳回日记模式
+  // 对应日期的回链;祖先链上没有日记时退而查反链——被某篇日记 [[引用]] 的
+  // 页面也算那天的笔记(双链创建的顶层页正是这个形态)。
+  // linksVersion 在页集或远端合并变化时抬升,反链结果随之重算。
+  const dailyBackLinkKey = useMemo(
+    () =>
+      !hideHeader && page
+        ? dailyKeyOfSelfOrAncestor(page, pages) ?? dailyKeyReferencing(page.title)
+        : null,
+    [hideHeader, page, pages, linksVersion]
+  )
   const childPages = useMemo(
     () =>
       pages
@@ -267,6 +283,16 @@ export function Editor({ hideHeader = false }: { hideHeader?: boolean }): JSX.El
           onClose={() => setCoverPickerOpen(false)}
         />
       )}
+      {dailyBackLinkKey && (
+        <button
+          type="button"
+          className="mb-1 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => openDailyView(dailyBackLinkKey)}
+        >
+          <CalendarDays className="size-3.5" />
+          日记 · {formatDailyTitle(dailyBackLinkKey)}
+        </button>
+      )}
       {!hideHeader && (<div className="relative">
         <div className={cn('flex items-center gap-1', page.cover ? '-mt-10 mb-8' : 'mb-1')}>
           <button
@@ -318,19 +344,33 @@ export function Editor({ hideHeader = false }: { hideHeader?: boolean }): JSX.El
       {childPages.length > 0 && (
         <section className="mb-4 space-y-0.5" aria-label="下级页面">
           {childPages.map((childPage) => (
-            <button
+            <div
               key={childPage.id}
-              type="button"
-              className="group flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left text-sm font-medium transition-colors hover:bg-accent/60"
-              onClick={() => void selectPage(childPage.id)}
+              className="group flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-sm font-medium transition-colors hover:bg-accent/60"
             >
-              <span className="flex size-5 shrink-0 items-center justify-center text-base">
-                {childPage.icon ?? <FileText className="size-4 text-muted-foreground" />}
-              </span>
-              <span className="min-w-0 truncate underline decoration-muted-foreground/50 underline-offset-4 group-hover:decoration-foreground">
-                {childPage.title || '无标题'}
-              </span>
-            </button>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                onClick={() => void selectPage(childPage.id)}
+              >
+                <span className="flex size-5 shrink-0 items-center justify-center text-base">
+                  {childPage.icon ?? <FileText className="size-4 text-muted-foreground" />}
+                </span>
+                <span className="min-w-0 truncate underline decoration-muted-foreground/50 underline-offset-4 group-hover:decoration-foreground">
+                  {childPage.title || '无标题'}
+                </span>
+              </button>
+              {/* 日记下挂的子页不在侧边栏,这里是它唯一的删除入口。 */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`删除子页面 ${childPage.title || '无标题'}`}
+                className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                onClick={() => void deletePage(childPage.id)}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
           ))}
         </section>
       )}

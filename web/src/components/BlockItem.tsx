@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Plus } from 'lucide-react'
 import type { Block, BlockType } from '~/lib/shared'
+import { dailyKeyOfSelfOrAncestor } from '~/lib/daily'
 import { useStore } from '~/store'
 import { cn } from '~/lib/utils'
 import { placeholderFor, type BlockTypeMeta } from '~/lib/blockTypes'
@@ -295,7 +296,12 @@ export function BlockItem({
       await selectPage(target.pageId)
       return
     }
-    await createPage(null, title)
+    // 在日记(或其子页)里创建的链接页挂到当前页下:它是「日记的笔记」,
+    // 回链与层级由此而来;普通页面维持挂顶层的旧行为。
+    const s = useStore.getState()
+    const cur = s.currentPageId ? s.pages.find((p) => p.id === s.currentPageId) : undefined
+    const parent = cur && dailyKeyOfSelfOrAncestor(cur, s.pages) ? cur.id : null
+    await createPage(parent, title)
   }
 
   /** Click on a wiki link inside the body. */
