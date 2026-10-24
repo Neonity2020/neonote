@@ -413,7 +413,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
 
             <DragOverlay dropAnimation={null}>
               {activeRow ? (
-                <div className="flex w-56 items-center gap-1 rounded-md bg-popover px-2 py-1 text-sm shadow-xl ring-1 ring-border">
+                <div className="flex w-56 animate-in fade-in-0 zoom-in-95 duration-150 items-center gap-1 rounded-md bg-popover px-2 py-1 text-sm shadow-xl ring-1 ring-border">
                   <span className="w-5 shrink-0 text-center text-sm">
                     {activeRow.page.icon ?? (
                       <FileText className="mx-auto h-3.5 w-3.5 text-muted-foreground" />
@@ -653,10 +653,10 @@ function PageRow({
       {...attributes}
       {...listeners}
       className={cn(
-        'group relative flex cursor-grab touch-none select-none items-center gap-1 rounded-md py-1 pr-1 text-sm active:cursor-grabbing',
+        'group relative flex cursor-grab touch-none select-none items-center gap-1 rounded-md py-1 pr-1 text-sm transition-[opacity,transform] duration-200 active:cursor-grabbing',
         active ? 'bg-accent font-medium text-accent-foreground' : 'hover:bg-accent/60',
         highlighted && 'bg-primary/10 ring-1 ring-inset ring-primary',
-        isDragging && 'opacity-40'
+        isDragging && 'scale-[0.98] opacity-40'
       )}
       style={{ paddingLeft: `${depth * INDENT + ROW_PAD}px` }}
       onClick={() => onSelect(page.id)}

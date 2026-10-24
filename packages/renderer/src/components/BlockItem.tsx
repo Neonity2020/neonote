@@ -675,7 +675,7 @@ export function BlockItem({
     <div
       ref={setWrapperRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('group relative rounded', isDragging && 'z-20 opacity-50')}
+      className={cn('group relative rounded', isDragging && 'z-20')}
     >
       <div className="absolute -left-[52px] flex items-center pt-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <button
@@ -694,7 +694,16 @@ export function BlockItem({
           <GripVertical className="h-4 w-4" />
         </button>
       </div>
-      <div className="relative min-w-0 py-0.5">{renderContent()}</div>
+      {/* 拖动"抬起"效果放在内层：外层的 transform 由 dnd-kit 跟随指针更新，
+          内层负责缩放/阴影的过渡，两者互不干扰。 */}
+      <div
+        className={cn(
+          'relative min-w-0 rounded py-0.5 transition-[transform,box-shadow] duration-200 ease-out',
+          isDragging && 'scale-[1.02] bg-background shadow-md'
+        )}
+      >
+        {renderContent()}
+      </div>
       {slashOpen && (
         <SlashMenu items={slashItems} selectedIndex={slashIndex} onSelect={onSlashSelect} onHover={onSlashHover} />
       )}
