@@ -1,4 +1,4 @@
-import type { AssetBytes, NotionApi, SaveImageInput, SavedImage } from '~/lib/shared'
+import type { AssetBytes, NeoNoteApi, SaveImageInput, SavedImage } from '~/lib/shared'
 import {
   listPages,
   createPage,
@@ -89,10 +89,10 @@ async function readAssetBytes(url: string): Promise<AssetBytes | null> {
 }
 
 /**
- * NotionApi 的 Web 实现：每个方法对应一个 server 函数（走 TanStack Start 的
+ * NeoNoteApi 的 Web 实现：每个方法对应一个 server 函数（走 TanStack Start 的
  * RPC fetch）。组件通过 window.api 使用它，与 Electron 端的 contextBridge 同构。
  */
-export const api: NotionApi = {
+export const api: NeoNoteApi = {
   listPages: () => listPages(),
   createPage: (input) => createPage({ data: input }),
   updatePage: (input) => updatePage({ data: input }),

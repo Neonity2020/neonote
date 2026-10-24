@@ -36,7 +36,7 @@
   "author": "Neonity",
   "build": {
     "appId": "com.neonity.neonote",
-    "productName": "Neonote",
+    "productName": "NeoNote",
     "copyright": "Copyright © 2026",
     "directories": {
       "output": "dist"
@@ -62,7 +62,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Neonote"
+      "shortcutName": "NeoNote"
     },
     "mac": {
       "target": [

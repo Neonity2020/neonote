@@ -10,7 +10,7 @@ import type {
   CreatePageInput,
   DeepPartial,
   MovePageInput,
-  NotionApi,
+  NeoNoteApi,
   PageUpdateResult,
   SaveImageInput,
   SettingsApi,
@@ -24,7 +24,7 @@ import type {
  * every call goes through an explicit, typed IPC channel.
  */
 
-const api: NotionApi = {
+const api: NeoNoteApi = {
   listPages: () => ipcRenderer.invoke('pages:list'),
   createPage: (input: CreatePageInput) => ipcRenderer.invoke('pages:create', input),
   updatePage: (input: UpdatePageInput): Promise<PageUpdateResult> =>

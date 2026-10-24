@@ -10,10 +10,10 @@ delete process.env.ELECTRON_RUN_AS_NODE
 
 export default defineConfig({
   main: {
-    // @neonity/notion-clone-shared is a TypeScript-source package whose `main`
+    // @neonity/neonote-shared is a TypeScript-source package whose `main`
     // points at src/index.ts, so it cannot be required at runtime. It is
     // excluded from externalization and bundled into out/main instead.
-    plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['@neonity/neonote-shared'] })],
     build: {
       rollupOptions: {
         // node:sqlite is a Node built-in, it must stay an external require.
@@ -24,7 +24,7 @@ export default defineConfig({
   preload: {
     // Same reason as in the main process: the shared package ships TypeScript
     // sources, so it has to be bundled rather than required at runtime.
-    plugins: [externalizeDepsPlugin({ exclude: ['@neonity/notion-clone-shared'] })]
+    plugins: [externalizeDepsPlugin({ exclude: ['@neonity/neonote-shared'] })]
   },
   renderer: {
     // The whisper worker (and transformers.js → onnxruntime-web beneath it) relies

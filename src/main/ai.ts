@@ -29,7 +29,7 @@ import { tableToText } from '@neonity/neonote-shared'
  * - Streams the session's events to the renderer over IPC
  */
 
-const SYSTEM_PROMPT_BASE = `你是 Neonote 笔记应用内置的 AI 助手,使用简体中文回答。
+const SYSTEM_PROMPT_BASE = `你是 NeoNote 笔记应用内置的 AI 助手,使用简体中文回答。
 
 你可以通过工具读写用户的笔记:
 - notes_list_pages:列出所有页面(返回 id、标题、图标、父页面)

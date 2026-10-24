@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 
-import type { AiApi, NotionApi, SettingsApi } from '~/lib/shared'
+import type { AiApi, NeoNoteApi, SettingsApi } from '~/lib/shared'
 import type { JSX as ReactJSX } from 'react'
 
 declare global {
   interface Window {
     // Web 端的三个桥接面（lib/bridge.ts 注入），与 Electron preload 注入的同构。
-    api: NotionApi
+    api: NeoNoteApi
     ai: AiApi
     settings: SettingsApi
   }

@@ -716,7 +716,7 @@ const WELCOME_SEED_BLOCKS: Array<{ type: BlockType; text: string; checked?: bool
   { type: 'todo', text: '试试勾选这个待办事项', checked: false },
   { type: 'todo', text: '已完成的事项会显示删除线', checked: true },
   { type: 'quote', text: '块可以拖动左侧手柄重新排序。' },
-  { type: 'code', text: 'function hello() {\n  console.log("Hello, Neonote!")\n}' },
+  { type: 'code', text: 'function hello() {\n  console.log("Hello, NeoNote!")\n}' },
   { type: 'divider', text: '' },
   { type: 'paragraph', text: '在左侧边栏可以新建页面、组织层级、搜索全部内容。开始写作吧!' }
 ]

@@ -40,7 +40,7 @@ function createWindow(): void {
     // never sees a white flash before the first paint.
     show: false,
     backgroundColor: resolvedTheme() === 'dark' ? '#0a0a0b' : '#ffffff',
-    title: 'Neonote',
+    title: 'NeoNote',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -159,7 +159,7 @@ app.whenReady()
     // process alive with no window and no message, so the user only saw a
     // dock icon that did nothing. Report it and quit.
     const message = err instanceof Error ? err.message : String(err)
-    dialog.showErrorBox('Neonote 启动失败', `无法初始化本地数据库：\n${message}`)
+    dialog.showErrorBox('NeoNote 启动失败', `无法初始化本地数据库：\n${message}`)
     app.exit(1)
   })
 

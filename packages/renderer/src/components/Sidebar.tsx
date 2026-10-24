@@ -300,7 +300,7 @@ export function Sidebar({ dark, onToggleTheme, onOpenSettings }: SidebarProps): 
           <span className="flex h-5 w-5 items-center justify-center rounded bg-foreground text-[10px] font-bold text-background">
             N
           </span>
-          Neonote
+          NeoNote
         </div>
         <Tooltip>
           <TooltipTrigger asChild>

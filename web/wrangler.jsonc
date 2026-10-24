@@ -14,7 +14,7 @@
   //   TURSO_AUTH_TOKEN, BETTER_AUTH_SECRET
   // Non-secret runtime vars can go in "vars", e.g.:
   // "vars": {
-  //   "TURSO_DATABASE_URL": "libsql://notion-clone-web-<your-turso-org>.turso.io",
+  //   "TURSO_DATABASE_URL": "libsql://neonote-web-<your-turso-org>.turso.io",
   //   "R2_PUBLIC_URL": "https://images.example.com"
   // },
 }

@@ -23,7 +23,7 @@ export type BlockType =
   | 'database'
 
 /** Title of the auto-seeded welcome page. Used to identify it for "reset examples". */
-export const WELCOME_PAGE_TITLE = '欢迎使用 Neonote'
+export const WELCOME_PAGE_TITLE = '欢迎使用 NeoNote'
 
 /** A simple table: plain-text cells, no merging or styling, with an optional header row. */
 export interface TableData {
@@ -515,7 +515,7 @@ export interface AssetBytes {
 }
 
 /** The pages, blocks and links surface exposed to the renderer through contextBridge. */
-export interface NotionApi {
+export interface NeoNoteApi {
   listPages(): Promise<PageMeta[]>
   createPage(input: CreatePageInput): Promise<PageMeta>
   /** Change the title and/or icon; a title change also rewrites the `[[old title]]` links in other blocks and returns the ids of the rewritten blocks. */

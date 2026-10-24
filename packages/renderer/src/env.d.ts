@@ -1,11 +1,11 @@
 /// <reference types="vite/client" />
 
-import type { AiApi, NotionApi, SettingsApi } from '@neonity/neonote-shared'
+import type { AiApi, NeoNoteApi, SettingsApi } from '@neonity/neonote-shared'
 
 declare global {
   interface Window {
     // The three bridge surfaces injected by the preload script.
-    api: NotionApi
+    api: NeoNoteApi
     ai: AiApi
     settings: SettingsApi
   }

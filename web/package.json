@@ -4,7 +4,7 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
-  "description": "Web version of Neonote: TanStack Start + better-auth + drizzle + Turso, deployed to Cloudflare Workers",
+  "description": "Web version of NeoNote: TanStack Start + better-auth + drizzle + Turso, deployed to Cloudflare Workers",
   "scripts": {
     "dev": "bash dev.sh",
     "build": "vite build && tsc --noEmit",

@@ -13,7 +13,7 @@ function LandingPage() {
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-8 px-6 text-center">
       <div className="space-y-3">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-          Neonote
+          NeoNote
           <span className="text-neutral-400"> Web</span>
         </h1>
         <p className="text-lg text-neutral-500 dark:text-neutral-400">
