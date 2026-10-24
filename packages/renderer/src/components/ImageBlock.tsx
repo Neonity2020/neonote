@@ -27,6 +27,7 @@ export function ImageBlock({ block, registerRef, getNeighbors }: ImageBlockProps
   const rootRef = useRef<HTMLDivElement | null>(null)
   const moveFocus = useRef(false)
   const [error, setError] = useState('')
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
 
   useLayoutEffect(() => {
     const el = captionRef.current
@@ -72,6 +73,38 @@ export function ImageBlock({ block, registerRef, getNeighbors }: ImageBlockProps
       const current = useStore.getState().blocks.find((b) => b.id === block.id)
       if (current) updateBlockLocal(block.id, { ...current.content, src: res.url })
     }
+  }
+
+  // Notion-style edge drag: the handle maps the pointer delta to a percentage
+  // of the content column, clamped to 25–100, and persists on pointer up.
+  const startResize = (e: React.PointerEvent<HTMLDivElement>, edge: 'left' | 'right'): void => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    const container = rootRef.current
+    if (!container) return
+    const startX = e.clientX
+    const baseWidth = block.content.width ?? 100
+    const containerWidth = container.clientWidth || 1
+    let pct = baseWidth
+    const onMove = (ev: PointerEvent): void => {
+      const delta = edge === 'right' ? ev.clientX - startX : startX - ev.clientX
+      pct = Math.min(100, Math.max(25, Math.round(baseWidth + (delta / containerWidth) * 100)))
+      setDragWidth(pct)
+    }
+    const onUp = (): void => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.style.cursor = ''
+      setDragWidth(null)
+      const current = useStore.getState().blocks.find((b) => b.id === block.id)
+      if (current && pct !== (current.content.width ?? 100)) {
+        updateBlockLocal(block.id, { ...current.content, width: pct })
+      }
+    }
+    document.body.style.cursor = 'ew-resize'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>): void => {
@@ -161,6 +194,8 @@ export function ImageBlock({ block, registerRef, getNeighbors }: ImageBlockProps
     )
   }
 
+  const displayWidth = dragWidth ?? block.content.width
+
   return wrapMenu(
     <div
       ref={setRef}
@@ -168,12 +203,31 @@ export function ImageBlock({ block, registerRef, getNeighbors }: ImageBlockProps
       onKeyDown={handleKeyDown}
       className="cursor-default rounded-md py-1 outline-none focus:ring-2 focus:ring-foreground/20"
     >
-      <img
-        src={src}
-        alt={caption}
-        draggable={false}
-        className="max-h-[480px] max-w-full select-none rounded-sm"
-      />
+      <div
+        className="group/img relative max-w-full"
+        style={{ width: displayWidth != null ? `${displayWidth}%` : undefined }}
+      >
+        <img
+          src={src}
+          alt={caption}
+          draggable={false}
+          className="block h-auto w-full max-h-[480px] max-w-full select-none rounded-sm"
+        />
+        <div
+          aria-hidden
+          onPointerDown={(e) => startResize(e, 'left')}
+          className={`absolute inset-y-0 -left-3 z-10 flex w-4 cursor-ew-resize touch-none items-center justify-center transition-opacity ${dragWidth != null ? 'opacity-100' : 'opacity-0 group-hover/img:opacity-100'}`}
+        >
+          <div className="h-12 w-[3px] rounded-full bg-foreground/30" />
+        </div>
+        <div
+          aria-hidden
+          onPointerDown={(e) => startResize(e, 'right')}
+          className={`absolute inset-y-0 -right-3 z-10 flex w-4 cursor-ew-resize touch-none items-center justify-center transition-opacity ${dragWidth != null ? 'opacity-100' : 'opacity-0 group-hover/img:opacity-100'}`}
+        >
+          <div className="h-12 w-[3px] rounded-full bg-foreground/30" />
+        </div>
+      </div>
       <textarea
         ref={captionRef}
         aria-label="图片说明"

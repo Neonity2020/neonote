@@ -40,6 +40,8 @@ export interface BlockContent {
   src?: string
   /** Image caption, also mirrored to text for search and AI context. */
   caption?: string
+  /** Image block: display width as a percentage of the content column (25–100). */
+  width?: number
   /** Audio block: speech-to-text transcript, also mirrored to text for search. */
   transcript?: string
   /** Table block: row and column data. */
