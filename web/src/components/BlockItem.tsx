@@ -536,11 +536,11 @@ export function BlockItem({
   const renderContent = (): JSX.Element => {
     switch (block.type) {
       case 'heading1':
-        return <div {...editableProps} className="block-editable text-[28px] font-bold leading-[1.3]" />
+        return <div {...editableProps} className="font-title-kai block-editable text-[28px] font-bold leading-[1.3]" />
       case 'heading2':
-        return <div {...editableProps} className="block-editable text-[22px] font-semibold leading-[1.35]" />
+        return <div {...editableProps} className="font-title-kai block-editable text-[22px] font-semibold leading-[1.35]" />
       case 'heading3':
-        return <div {...editableProps} className="block-editable text-[18px] font-semibold leading-[1.4]" />
+        return <div {...editableProps} className="font-title-kai block-editable text-[18px] font-semibold leading-[1.4]" />
       case 'quote':
         return (
           <div className="border-l-[3px] border-foreground/60 pl-3.5">
@@ -550,7 +550,7 @@ export function BlockItem({
       case 'bulletedList':
         return (
           <div className="flex items-start gap-2">
-            <span className="select-none pt-px block-body">•</span>
+            <span className="mt-[11px] block h-[5px] w-[5px] shrink-0 select-none rounded-full bg-red-700 dark:bg-red-400" />
             <div {...editableProps} className="block-editable min-w-0 flex-1 block-body" />
           </div>
         )
@@ -704,7 +704,7 @@ export function BlockItem({
           内层负责缩放/阴影的过渡，两者互不干扰。 */}
       <div
         className={cn(
-          'relative min-w-0 rounded py-0.5 transition-[transform,box-shadow] duration-200 ease-out',
+          'relative min-w-0 rounded py-1.5 transition-[transform,box-shadow] duration-200 ease-out',
           isDragging && 'scale-[1.02] bg-background shadow-md'
         )}
       >

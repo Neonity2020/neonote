@@ -104,6 +104,19 @@
   }
 }
 
+/* Titles use the locally installed Tsanger JinKai (仓耳今楷); falls back to system sans. */
+.font-title-kai {
+  font-family:
+    'TsangerJinKai03',
+    '仓耳今楷03',
+    'TsangerJinKai03 W04',
+    '仓耳今楷03 W04',
+    ui-sans-serif,
+    -apple-system,
+    'PingFang SC',
+    sans-serif;
+}
+
 /* ---------- Editor ---------- */
 
 /* The body font size is pushed down as a CSS variable on the root element by

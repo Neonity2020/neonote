@@ -305,7 +305,7 @@ export function Editor(): JSX.Element {
         placeholder="无标题"
         rows={1}
         spellCheck={false}
-        className="w-full resize-none overflow-hidden bg-transparent pb-4 text-[38px] font-bold leading-tight outline-none placeholder:text-muted-foreground/30"
+        className="font-title-kai w-full resize-none overflow-hidden bg-transparent pb-4 text-[38px] font-bold leading-tight outline-none placeholder:text-muted-foreground/30"
       />
 
       {childPages.length > 0 && (
