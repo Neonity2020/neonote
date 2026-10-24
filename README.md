@@ -1,12 +1,13 @@
-# Notion Clone
+# NeoNote
 
 **[中文](#中文) · [English](#english)**
 
-> 本地优先的块笔记应用 —— 所有数据保存在本机 SQLite 数据库中，不上传任何服务器。
-> A local-first, block-based notes app — every byte stays in a local SQLite database, nothing is ever uploaded.
+> 本地优先的块笔记应用 —— 数据首先保存在本机（桌面版 SQLite / Web 版 IndexedDB），桌面版完全离线可用，Web 版提供离线优先的多端同步。
+> A local-first, block-based notes app — data lives on your machine first (SQLite on desktop, IndexedDB on the web), with an offline-first sync engine for multi-device use on the web.
 
-Electron + Vite + React + shadcn/ui + SQLite 构建的桌面块编辑器，带页面树、拖拽排序、全文搜索、
-表格、图片，以及一个能直接读写笔记的 AI 助手。
+桌面版（Electron + Vite + React + shadcn/ui + SQLite）与 Web 版（TanStack Start + Cloudflare Workers）
+同源界面：块编辑器、页面树、拖拽排序、全文搜索、表格、数据库、图片、音频转写、双链、
+日记模式，以及桌面版上能直接读写笔记的 AI 助手。
 
 📖 **完整文档见 [`docs/`](docs/README.md) / Full documentation lives in [`docs/`](docs/README.md)**
 
@@ -21,7 +22,7 @@ npm install
 npm run dev
 ```
 
-首次启动会自动创建一个「欢迎使用 Notion Clone」示例页面。
+首次启动会自动创建一个「欢迎使用 NeoNote」示例页面。
 
 | 脚本 | 作用 |
 | --- | --- |
@@ -44,7 +45,10 @@ npm run dev
 - **表格** —— 纯文本行列数据，键盘导航，可被搜索和 AI 读取
 - **数据库** —— 属性 + 记录，表格或画廊视图，支持搜索与排序，可被搜索和 AI 读取
 - **图片** —— 任意文本块 `Ctrl+V` 直接粘贴；可选同步到 Cloudflare R2 图床
+- **音频与转写** —— 音频块附本地转写，支持一键复制与折叠
 - **全文搜索** —— 同时匹配页面标题与块正文
+- **日记模式**（Web 版）—— 月历导航，每天一篇确定性页面；双链创建的笔记自动归属当天日记并可从回链返回
+- **多端同步**（Web 版）—— 离线优先：本地 IndexedDB 为第一数据源，后台引擎按行级 LWW 与墓碑删除双向同步
 - **AI 助手** —— 复用本机 `~/.pi/agent` 的模型配置，能直接读写笔记
 - **主题与外观** —— 浅色 / 深色 / 跟随系统，字号与内容宽度可调
 
@@ -67,7 +71,7 @@ npm run dev
 | 预加载 | `src/preload/` | `contextBridge` 白名单，只暴露 `window.api` / `window.ai` / `window.settings` |
 | 渲染进程 | `packages/renderer/` | 纯 React：块编辑、页面树、面板。不碰文件系统，不直接 import `node:` 模块 |
 
-IPC 契约集中在共享包 `@neonity/notion-clone-shared`，主进程与渲染进程引用同一份类型。
+IPC 契约集中在共享包 `@neonity/neonote-shared`，主进程与渲染进程引用同一份类型。
 
 数据流：渲染进程的改动 → `window.api` → 预加载转发 → 主进程落库；主进程再把事件
 （AI 流式输出、设置变更、笔记被 AI 改写）推回渲染进程。
@@ -80,29 +84,46 @@ IPC 契约集中在共享包 `@neonity/notion-clone-shared`，主进程与渲染
 │   ├── main/                   主进程：db / assets / settings / ai
 │   └── preload/                contextBridge 白名单
 ├── packages/
-│   ├── shared/                 @neonity/notion-clone-shared（IPC 契约层）
-│   └── renderer/               @neonity/notion-clone-ui（前端包，可独立 npm 发布）
+│   ├── shared/                 @neonity/neonote-shared（IPC 契约层）
+│   └── renderer/               @neonity/neonote-ui（前端包，可独立 npm 发布）
+├── web/                        Web 版（TanStack Start + Cloudflare Workers）
 ├── build/                      electron-builder 资源（macOS entitlements）
 ├── scripts/                    签名钩子、文档校验
 ├── docs/                       完整文档
 └── electron.vite.config.ts
 ```
 
+### Web 版（`web/`）
+
+与桌面版同源的 React 界面，运行在 TanStack Start + Cloudflare Workers 上：
+
+- **认证与存储** —— better-auth 登录，Turso（libSQL）云端行存储，drizzle ORM
+- **离线优先同步** —— IndexedDB 本地库是唯一读写面，写穿本地后由后台同步引擎
+  推送/拉取；行级 LWW 裁决、墓碑传导删除、断网可继续写作
+- **日记模式（Daily Note）** —— 参照 Capacities 的交互：月历导航、日期标题、
+  每天一篇确定性页面（`daily-YYYY-MM-DD`），从日记里双链创建的笔记自动归属
+  当天并可从回链返回
+- **启动** —— `cd web && ./dev.sh`（本地 sqld + vite，<http://localhost:3000>）；
+  部署用 `npm run deploy`（wrangler）
+
 ### 数据存放位置
 
 ```
-<userData>/notion-clone/
-├── notion-clone.db      # 页面、块、设置
-├── notion-clone.db-wal  # WAL 日志
-├── notion-clone.db-shm  # WAL 共享内存
+<userData>/neonote/
+├── neonote.db           # 页面、块、设置
+├── neonote.db-wal       # WAL 日志
+├── neonote.db-shm       # WAL 共享内存
 └── assets/              # 图片资源，文件名 = UUID + 扩展名
 ```
 
 | 平台 | 路径 |
 | --- | --- |
-| Windows | `%APPDATA%\notion-clone` |
-| macOS | `~/Library/Application Support/notion-clone` |
-| Linux | `~/.config/notion-clone` |
+| Windows | `%APPDATA%\neonote` |
+| macOS | `~/Library/Application Support/neonote` |
+| Linux | `~/.config/neonote` |
+
+从旧版本（`notion-clone`）升级时，应用会在启动时自动把整个旧数据目录迁移到新位置
+（含数据库与 WAL 文件），无需手动操作。
 
 备份 = 复制整个目录（稳妥起见先退出应用，让 WAL 落盘）。
 
@@ -149,8 +170,8 @@ npm install
 npm run dev
 ```
 
-On first launch the app seeds a welcome page titled **「欢迎使用 Notion Clone」** (👋) that
-demonstrates 10 of the 13 block types.
+On first launch the app seeds a welcome page titled **「欢迎使用 NeoNote」** (👋) that
+demonstrates the block types in action.
 
 | Script | What it does |
 | --- | --- |
@@ -173,7 +194,10 @@ built-in `node:sqlite` module provided by the Node 22 runtime bundled with Elect
 - **Tables** — plain-text cells with full keyboard navigation, readable by search and by the AI
 - **Databases** — properties and records in a table or gallery view, searchable and sortable, readable by search and by the AI
 - **Images** — stored locally; paste straight from the clipboard with `Ctrl+V` in any text block
+- **Audio & transcription** — audio blocks with local transcription, one-click copy and collapsible transcript
 - **Full-text search** — matches page titles and block bodies
+- **Daily notes** (web) — calendar navigation, one deterministic page per day; notes created via wiki links belong to that day and link back to it
+- **Multi-device sync** (web) — offline-first: IndexedDB is the local source of truth, with a background engine syncing via row-level LWW and tombstones
 - **AI assistant** — reuses the model configuration in your local `~/.pi/agent` and can read and write your notes
 - **Theme and appearance** — light / dark / follow system, with adjustable font size and content width
 
@@ -196,7 +220,7 @@ Three layers with strictly separated responsibilities:
 | Preload | `src/preload/` | A `contextBridge` allowlist exposing exactly `window.api`, `window.ai` and `window.settings` |
 | Renderer | `packages/renderer/` | Pure React: block editing, page tree, panels. No filesystem access, no direct `node:` imports |
 
-The IPC contract lives in the shared package `@neonity/notion-clone-shared`, so the main process
+The IPC contract lives in the shared package `@neonity/neonote-shared`, so the main process
 and the renderer always speak the same types.
 
 Data flow: a renderer change goes through `window.api`, is forwarded by the preload script, and is
@@ -211,29 +235,47 @@ changes, notes rewritten by the AI).
 │   ├── main/                   Main process: db / assets / settings / ai
 │   └── preload/                contextBridge allowlist
 ├── packages/
-│   ├── shared/                 @neonity/notion-clone-shared (the IPC contract)
-│   └── renderer/               @neonity/notion-clone-ui (publishable UI package)
+│   ├── shared/                 @neonity/neonote-shared (the IPC contract)
+│   └── renderer/               @neonity/neonote-ui (publishable UI package)
+├── web/                        Web app (TanStack Start + Cloudflare Workers)
 ├── build/                      electron-builder resources (macOS entitlements)
 ├── scripts/                    Signing hook, docs validation
 ├── docs/                       Full documentation
 └── electron.vite.config.ts
 ```
 
+### Web app (`web/`)
+
+The same React UI running on TanStack Start + Cloudflare Workers:
+
+- **Auth & storage** — better-auth sign-in, Turso (libSQL) row storage, drizzle ORM
+- **Offline-first sync** — the IndexedDB local store is the only read/write surface;
+  a background engine pushes and pulls with row-level LWW resolution and tombstone deletions,
+  so you can keep writing offline
+- **Daily notes** — Capacities-style interactions: calendar navigation, date heading, one
+  deterministic page per day (`daily-YYYY-MM-DD`); wiki-linked notes created from a daily
+  note belong to that day and link back to it
+- **Run it** — `cd web && ./dev.sh` (local sqld + vite at <http://localhost:3000>);
+  deploy with `npm run deploy` (wrangler)
+
 ### Where your data lives
 
 ```
-<userData>/notion-clone/
-├── notion-clone.db      # Pages, blocks and settings
-├── notion-clone.db-wal  # WAL journal
-├── notion-clone.db-shm  # WAL shared memory
+<userData>/neonote/
+├── neonote.db           # Pages, blocks and settings
+├── neonote.db-wal       # WAL journal
+├── neonote.db-shm       # WAL shared memory
 └── assets/              # Images, named UUID + extension
 ```
 
 | Platform | Path |
 | --- | --- |
-| Windows | `%APPDATA%\notion-clone` |
-| macOS | `~/Library/Application Support/notion-clone` |
-| Linux | `~/.config/notion-clone` |
+| Windows | `%APPDATA%\neonote` |
+| macOS | `~/Library/Application Support/neonote` |
+| Linux | `~/.config/neonote` |
+
+Upgrading from the old `notion-clone` identity? The app migrates the whole legacy data
+directory (db and WAL files included) to the new location automatically on startup.
 
 Backing up means copying the whole directory — quit the app first so the WAL is flushed.
 
