@@ -188,6 +188,10 @@ export async function pickAudio(): Promise<SavedImage | null> {
  * The main process has no CORS restrictions, so besides the app's own
  * nc-asset:// scheme (which the browser cannot fetch at all) any http(s) URL
  * can be proxied through here. Null when the URL cannot be read.
+ *
+ * Unlike the web version, private addresses are allowed on purpose: pulling a
+ * podcast from a NAS on the LAN is a normal use case, and the desktop app only
+ * ever talks to URLs the user themselves entered.
  */
 export async function fetchAssetBytes(url: string): Promise<AssetBytes | null> {
   try {
@@ -202,14 +206,65 @@ export async function fetchAssetBytes(url: string): Promise<AssetBytes | null> {
     if (/^https?:\/\//.test(url)) {
       const response = await fetch(url)
       if (!response.ok) return null
-      const data = await response.arrayBuffer()
-      if (data.byteLength > 30 * 1024 * 1024) return null
+      const data = await readCapped(response, MAX_REMOTE_ASSET_BYTES)
+      if (!data) return null
       return { mime: response.headers.get('content-type') || 'application/octet-stream', data }
     }
   } catch {
     // 读取失败按不可读处理，调用方回退到自己的报错。
   }
   return null
+}
+
+/** 外链媒体的最大字节数。 */
+const MAX_REMOTE_ASSET_BYTES = 30 * 1024 * 1024
+
+/**
+ * 读响应体，超过上限就中断。
+ *
+ * 不先 arrayBuffer() 再比大小：超大响应会整个进内存，桌面端没有
+ * Workers 那样的内存上限兜底，一次就能把应用拖垮。先看 content-length
+ * 快速拒绝，再流式读取兜住没有长度头的分块响应。
+ */
+async function readCapped(response: Response, maxBytes: number): Promise<ArrayBuffer | null> {
+  const declared = response.headers.get('content-length')
+  if (declared !== null) {
+    const size = Number(declared)
+    if (Number.isFinite(size) && size > maxBytes) return null
+  }
+
+  const body = response.body
+  if (!body) {
+    const buffer = await response.arrayBuffer()
+    return buffer.byteLength <= maxBytes ? buffer : null
+  }
+
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      total += value.byteLength
+      if (total > maxBytes) {
+        await reader.cancel()
+        return null
+      }
+      chunks.push(value)
+    }
+  } catch {
+    return null
+  }
+
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out.buffer
 }
 
 /**

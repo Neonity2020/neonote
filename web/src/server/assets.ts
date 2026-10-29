@@ -6,6 +6,12 @@ import { randomUUID } from 'node:crypto'
 import { getDb } from '~/lib/db'
 import { asset } from '~/db/schema'
 import type { SavedImage } from '~/lib/shared'
+import {
+  isAudioResponseType,
+  isPrivateHost,
+  MAX_REMOTE_AUDIO_BYTES,
+  readCapped,
+} from '~/lib/url-guard'
 import { requireUser, getAssetBytes } from './queries'
 import { getR2PublicUrl, getR2Image, hasR2ImageStorage, putR2Image } from './r2'
 
@@ -141,27 +147,74 @@ export const fetchAssetBytes = createServerFn({ method: 'POST' })
       }
     }
 
-    // 其他 http(s) 音频直链：服务端代抓。仅接受音频类响应、≤30MB；
-    // 非音频（HTML 错误页等）按不可读返回。
+    // 其他 http(s) 音频直链：服务端代抓。三道闸——
+    //   1. 主机不能指向内网/回环/元数据服务（SSRF），重定向每一跳都重查；
+    //   2. 响应类型必须是音频类，HTML 错误页按不可读返回；
+    //   3. 体积上限 30MB，流式截断，不给超大响应进内存的机会。
     if (/^https?:\/\//.test(url)) {
-      try {
-        const response = await fetch(url)
-        if (!response.ok) return null
-        const mime = (response.headers.get('content-type') || '').split(';')[0].trim()
-        // mp4 容器常装 AAC 音频（播客下载多为 .mp4/.m4a），<audio> 能播，放行。
-        const looksAudio =
-          mime.startsWith('audio/') ||
-          mime === 'video/mp4' ||
-          mime === 'application/octet-stream' ||
-          mime === ''
-        if (!looksAudio) return null
-        const buffer = await response.arrayBuffer()
-        if (buffer.byteLength > 30 * 1024 * 1024) return null
-        return { mime: mime || 'audio/mpeg', dataBase64: Buffer.from(buffer).toString('base64') }
-      } catch {
-        return null
-      }
+      return await fetchRemoteAudio(url)
     }
 
     return null
   })
+
+/** 外链抓取最多跟几跳重定向。 */
+const MAX_REDIRECTS = 3
+
+/**
+ * 服务端代抓外链音频。
+ *
+ * 重定向自己跟：每一跳都重新过一遍主机检查，否则一个 302 就能把请求
+ * 带到内网。同时也检查 response.url——万一批发环境无视了
+ * `redirect: 'manual'` 自己跟了跳转，最终地址这一道仍然拦得住。
+ */
+async function fetchRemoteAudio(url: string): Promise<{ mime: string; dataBase64: string } | null> {
+  let current = url
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    let parsed: URL
+    try {
+      parsed = new URL(current)
+    } catch {
+      return null
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    if (isPrivateHost(parsed.hostname)) return null
+
+    let response: Response
+    try {
+      response = await fetch(parsed.toString(), { redirect: 'manual' })
+    } catch {
+      return null
+    }
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location')
+      if (!location) return null
+      try {
+        current = new URL(location, parsed).toString()
+      } catch {
+        return null
+      }
+      continue
+    }
+
+    if (!response.ok) return null
+    // 运行环境自己跟了跳转的话，最终地址也要过主机检查。
+    if (response.url) {
+      let finalUrl: URL
+      try {
+        finalUrl = new URL(response.url)
+      } catch {
+        return null
+      }
+      if (isPrivateHost(finalUrl.hostname)) return null
+    }
+
+    const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+    if (!isAudioResponseType(mime)) return null
+    const buffer = await readCapped(response, MAX_REMOTE_AUDIO_BYTES)
+    if (!buffer) return null
+    return { mime, dataBase64: Buffer.from(buffer).toString('base64') }
+  }
+  return null
+}
