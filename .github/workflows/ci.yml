@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 同一个分支的新提交到来时，取消还在跑的旧任务。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 类型检查 / Lint / 文档校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # 根目录装桌面端与两个 workspace 包的依赖；web/ 不是 workspace，
+      # 有自己的 bun.lock，要单独装。
+      - name: 安装根依赖
+        run: bun install --frozen-lockfile
+
+      - name: 安装 Web 端依赖
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      # 根 typecheck 覆盖四处：根 + shared + renderer + web。
+      - name: 类型检查
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: 文档校验
+        run: bun run docs:check
+
+  build:
+    name: 构建桌面端与 Web 端
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # electron-vite build 只打包源码，不启动 electron，运行时二进制用不上，
+      # 跳过下载能给 CI 省下 ~100MB 和一段不稳定的时间。
+      - name: 安装根依赖
+        run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: 安装 Web 端依赖
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: 构建桌面端
+        run: bun run build
+
+      - name: 构建 Web 端
+        working-directory: web
+        run: bun run build

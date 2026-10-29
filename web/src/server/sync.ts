@@ -11,7 +11,6 @@ import { and, eq, gt, sql } from 'drizzle-orm'
 import { getDb } from '~/lib/db'
 import { block, page, tombstone } from '~/db/schema'
 import type {
-  Block,
   BlockContent,
   PageMeta,
   PullChangesInput,

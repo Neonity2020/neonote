@@ -8,7 +8,6 @@ import { getR2Image } from './r2'
 import { block, page, asset } from '~/db/schema'
 import { getSession } from './session'
 import {
-  parseWikiLinks,
   replaceWikiLinkTitle,
   WELCOME_PAGE_TITLE,
   WELCOME_SEED_BLOCKS,

@@ -7,7 +7,7 @@ import { Editor } from './Editor'
 import { DailyNoteView } from './DailyNoteView'
 import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
+import { TooltipProvider } from './ui/tooltip'
 import { CONTENT_WIDTHS } from '~/lib/shared'
 import { syncPageFavicon } from '~/lib/favicon'
 

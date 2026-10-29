@@ -140,8 +140,11 @@ async function ensureRuntime(): Promise<ModelRuntime> {
   return rt
 }
 
+/** Pi 运行时解析出来的模型对象。类型直接取自 SDK，避免手写 any。 */
+type ResolvedModel = NonNullable<ReturnType<ModelRuntime['getModel']>>
+
 /** Resolve the "provider/id" key from settings into a runtime model (the provider must have credentials configured). */
-async function resolveModel(key: string | null): Promise<any | undefined> {
+async function resolveModel(key: string | null): Promise<ResolvedModel | undefined> {
   if (!key) return undefined
   const sep = key.indexOf('/')
   if (sep <= 0) return undefined

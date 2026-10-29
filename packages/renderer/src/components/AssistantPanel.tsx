@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, FileText, Loader2, Send, Sparkles, Square, Wrench, X, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useStore } from '@/store'
@@ -75,14 +75,6 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
     }
   }
 
-  // Subscribe to the AI event stream and unsubscribe again on unmount.
-  useEffect(() => {
-    const off = window.ai.onEvent((event: AiEvent) => {
-      handleEvent(event)
-    })
-    return off
-  }, [])
-
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
@@ -98,7 +90,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
    */
   const activeAssistantId = useRef<string | null>(null)
 
-  function updateAssistant(fn: (m: ChatMessage) => ChatMessage): void {
+  const updateAssistant = useCallback((fn: (m: ChatMessage) => ChatMessage): void => {
     setMessages((prev) => {
       const idx = activeAssistantId.current
         ? prev.findIndex((m) => m.id === activeAssistantId.current)
@@ -112,9 +104,9 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
       next[idx] = fn(next[idx])
       return next
     })
-  }
+  }, [])
 
-  function handleEvent(event: AiEvent): void {
+  const handleEvent = useCallback((event: AiEvent): void => {
     switch (event.type) {
       case 'run_start':
         setStreaming(true)
@@ -158,7 +150,15 @@ export function AssistantPanel({ onClose }: AssistantPanelProps): JSX.Element {
         activeAssistantId.current = null
         break
     }
-  }
+  }, [updateAssistant])
+
+  // Subscribe to the AI event stream and unsubscribe again on unmount.
+  // handleEvent 是稳定的 useCallback,这条订阅只在挂载时建立一次,
+  // 不会每次渲染都重新订阅 IPC。
+  useEffect(() => {
+    const off = window.ai.onEvent(handleEvent)
+    return off
+  }, [handleEvent])
 
   function buildContext(): AiPageContext | null {
     if (!autoContext || !currentPage) return null
