@@ -1,20 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Check, X } from 'lucide-react'
+import { COVER_PRESETS } from '@/lib/cover'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-
-const COVER_PRESETS = [
-  { id: 'preset:aurora', label: '极光', background: 'linear-gradient(135deg, #0f766e 0%, #22d3ee 48%, #8b5cf6 100%)' },
-  { id: 'preset:sunset', label: '日落', background: 'linear-gradient(135deg, #fb7185 0%, #f97316 48%, #facc15 100%)' },
-  { id: 'preset:ocean', label: '海岸', background: 'linear-gradient(135deg, #0f172a 0%, #0369a1 50%, #67e8f9 100%)' },
-  { id: 'preset:meadow', label: '原野', background: 'linear-gradient(135deg, #14532d 0%, #4d7c0f 50%, #bef264 100%)' },
-  { id: 'preset:lavender', label: '薰衣草', background: 'linear-gradient(135deg, #4c1d95 0%, #a78bfa 52%, #f0abfc 100%)' },
-  { id: 'preset:ink', label: '墨色', background: 'linear-gradient(135deg, #020617 0%, #334155 55%, #94a3b8 100%)' },
-] as const
-
-export function getCoverBackground(cover: string): string {
-  return COVER_PRESETS.find((preset) => preset.id === cover)?.background ?? `url(${JSON.stringify(cover)})`
-}
 
 interface CoverPickerProps {
   currentCover: string | null

@@ -7,6 +7,7 @@ interface __BaseEnv_Env {
 	TURSO_AUTH_TOKEN: string;
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
+	UNSPLASH_ACCESS_KEY: string;
 }
 declare namespace Cloudflare {
 	interface Env extends __BaseEnv_Env {}
@@ -16,7 +17,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "TURSO_DATABASE_URL" | "TURSO_AUTH_TOKEN" | "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "TURSO_DATABASE_URL" | "TURSO_AUTH_TOKEN" | "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "UNSPLASH_ACCESS_KEY">> {}
 }
 declare module "*.txt" {
 	const value: string;

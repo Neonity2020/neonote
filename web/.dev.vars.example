@@ -7,3 +7,6 @@ BETTER_AUTH_SECRET=replace-with-openssl-rand-base64-32
 BETTER_AUTH_URL=http://localhost:3000
 # 可选：R2 自定义域名或 r2.dev 地址。留空时图片通过登录态保护的 /api/asset/:id 读取。
 R2_PUBLIC_URL=
+# 可选：Unsplash 题头图。在 https://unsplash.com/developers 免费创建应用后填入 Access Key，
+# 留空时封面选择器的 Unsplash 标签页会提示未配置。
+UNSPLASH_ACCESS_KEY=

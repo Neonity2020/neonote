@@ -18,7 +18,8 @@ import { dailyKeyOfSelfOrAncestor, dailyKeyReferencing, formatDailyTitle } from 
 import { BlockItem } from './BlockItem'
 import { EmojiPicker } from './EmojiPicker'
 import { LinkPanel } from './LinkPanel'
-import { CoverPicker, getCoverBackground } from './CoverPicker'
+import { CoverPicker } from './CoverPicker'
+import { getCoverBackground } from '~/lib/cover'
 import { Button } from './ui/button'
 import { cn } from '~/lib/utils'
 import newNoteWizardBackground from '~/assets/new-note-wizard-bg.webp'
@@ -46,7 +47,6 @@ export function Editor({ hideHeader = false }: { hideHeader?: boolean }): JSX.El
   const insertBlockAfter = useStore((s) => s.insertBlockAfter)
   const setBlocksOrder = useStore((s) => s.setBlocksOrder)
   const openDailyView = useStore((s) => s.openDailyView)
-  const linksVersion = useStore((s) => s.linksVersion)
   const deletePage = useStore((s) => s.deletePage)
 
   const page = pages.find((p) => p.id === currentPageId)
@@ -54,13 +54,14 @@ export function Editor({ hideHeader = false }: { hideHeader?: boolean }): JSX.El
   // 日记页(或日记下挂的子笔记)在普通页面视图打开时,给出跳回日记模式
   // 对应日期的回链;祖先链上没有日记时退而查反链——被某篇日记 [[引用]] 的
   // 页面也算那天的笔记(双链创建的顶层页正是这个形态)。
-  // linksVersion 在页集或远端合并变化时抬升,反链结果随之重算。
+  // 页集一变,store 就换上新数组(pages 依赖),反链结果随之重算;
+  // linksVersion 与页集变化总是同时发生,单靠 pages 就够触发重算。
   const dailyBackLinkKey = useMemo(
     () =>
       !hideHeader && page
         ? dailyKeyOfSelfOrAncestor(page, pages) ?? dailyKeyReferencing(page.title)
         : null,
-    [hideHeader, page, pages, linksVersion]
+    [hideHeader, page, pages]
   )
   const childPages = useMemo(
     () =>
