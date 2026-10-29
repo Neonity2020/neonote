@@ -67,7 +67,7 @@
 | --- | --- |
 | `lib/utils.ts` | `cn()`（clsx + tailwind-merge） |
 | `lib/caret.ts` | 光标偏移计算、焦点注册表、待处理焦点/单元格焦点/滚动请求 |
-| `lib/blockTypes.tsx` | 14 种块的元数据、过滤、占位提示 |
+| `lib/blockTypes.ts` | 14 种块的元数据、过滤、占位提示 |
 | `lib/wikiLink.ts` | 双链装饰器（把 `[[标题]]` 包成可点击 span）、`[[` 触发点查找、链接插入 |
 
 ### 组件
@@ -121,7 +121,7 @@
 
 | 我想改… | 去这些文件 |
 | --- | --- |
-| 加一种块类型 | shared 包 → `renderer/lib/blockTypes.tsx` → `renderer/components/BlockItem.tsx` → `main/ai.ts`；有专门视图的块（如表格、数据库）还要加自己的组件 |
+| 加一种块类型 | shared 包 → `renderer/lib/blockTypes.ts` → `renderer/components/BlockItem.tsx` → `main/ai.ts`；有专门视图的块（如表格、数据库）还要加自己的组件 |
 | 改数据库块行为 | `renderer/components/DatabaseBlock.tsx` |
 | 改块的编辑行为 | `renderer/components/BlockItem.tsx` |
 | 改表格行为 | `renderer/components/TableBlock.tsx` |

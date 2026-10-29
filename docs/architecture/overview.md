@@ -76,7 +76,7 @@ packages/
     ├── store.ts     笔记状态（zustand）
     ├── settingsStore.ts  设置状态（zustand）
     ├── lib/
-    │   ├── blockTypes.tsx  块类型元数据与过滤
+    │   ├── blockTypes.ts  块类型元数据与过滤
     │   ├── caret.ts        光标定位与焦点注册
     │   └── utils.ts        cn() 等工具
     └── components/  UI 组件

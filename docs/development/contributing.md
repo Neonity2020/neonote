@@ -5,12 +5,20 @@
 ## 提交前
 
 ```bash
+npm run verify       # 类型检查 + Lint + 文档校验（CI 跑的就是这一套）
 npm run build        # 确认能构建
-npx tsc --noEmit     # 确认没有类型错误
-npm run docs:check   # 确认文档链接没坏
 ```
 
-项目**没有**配置 ESLint / Prettier。代码风格靠人工保持一致：
+`npm run verify` 等价于依次跑：
+
+```bash
+npm run typecheck    # 四处 tsc：根 + shared + renderer + web
+npm run lint         # ESLint（自动修可用 npm run lint:fix）
+npm run docs:check   # 校验文档链接没坏
+```
+
+项目配了 ESLint（flat config，见 `eslint.config.mjs`），但**没有**配置 Prettier。
+格式类规则不交给 ESLint，代码风格靠人工保持一致：
 
 | 项 | 规范 |
 | --- | --- |
@@ -19,6 +27,13 @@ npm run docs:check   # 确认文档链接没坏
 | 引号 | 单引号 |
 | 尾随逗号 | 多行结构加 |
 | 命名 | 组件用 PascalCase，函数/变量用 camelCase，常量用 SCREAMING_SNAKE |
+
+ESLint 负责的是真正会出错的规则：`typescript-eslint` recommended、
+`react-hooks` recommended（hook 依赖）、以及 `react-refresh` 的 Fast Refresh 边界。
+写规则豁免时优先用文件级说明，别用行内 `eslint-disable` 糊过去。
+
+CI（`.github/workflows/ci.yml`）在每次 push 与 PR 上跑 `check` 与 `build` 两个 job：
+类型检查 / Lint / 文档校验，以及桌面端与 Web 端构建。
 
 ---
 
@@ -63,7 +78,7 @@ b949fc4 build: 接入 electron-builder 打包 Windows NSIS 安装器
 这是最容易漏的地方，共 **4 处**：
 
 1. `packages/shared/src/index.ts` —— `BlockType` 联合类型加成员
-2. `packages/renderer/src/lib/blockTypes.tsx` —— `BLOCK_TYPE_ITEMS` 加元数据（label / description / keywords / icon）
+2. `packages/renderer/src/lib/blockTypes.ts` —— `BLOCK_TYPE_ITEMS` 加元数据（label / description / keywords / icon）
 3. `packages/renderer/src/components/BlockItem.tsx` —— `renderContent()` 加渲染分支
 4. `src/main/ai.ts` —— `buildNotesTools()` 里的 `blockTypeSchema` 加枚举
 

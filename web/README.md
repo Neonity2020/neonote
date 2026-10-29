@@ -22,7 +22,7 @@ web/
 │   │   ├── bridge.ts       # 把 api / settings / ai 注入 window.*（与 Electron preload 同构）
 │   │   ├── settingsApi.ts  # SettingsApi 的 localStorage 实现
 │   │   ├── aiApi.ts        # AiApi 占位实现（Web 版暂无 AI 后端）
-│   │   ├── caret.ts / wikiLink.ts / blockTypes.tsx / utils.ts   # 桌面版渲染层工具的原样副本
+│   │   ├── caret.ts / wikiLink.ts / blockTypes.ts / utils.ts   # 桌面版渲染层工具的原样副本
 │   │   ├── transcribe.ts / transcribeWorker.ts  # 音频语音识别（浏览器本地 Whisper，HuggingFace/镜像自动回退）
 │   ├── store.ts            # 桌面版 zustand store 的原样副本（走 window.api）
 │   ├── settingsStore.ts    # 桌面版设置 store 的原样副本（走 window.settings）

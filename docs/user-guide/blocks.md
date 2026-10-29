@@ -165,7 +165,7 @@
 
 在任意文本块输入 `/` 唤起。
 
-- 菜单项按**名称、描述、关键词**三者匹配过滤（`packages/renderer/src/lib/blockTypes.tsx:55`）。
+- 菜单项按**名称、描述、关键词**三者匹配过滤（`packages/renderer/src/lib/blockTypes.ts:55`）。
 - 关键词包含中英文与拼音首字母，例如 `表格` 块可被 `biaoge` / `bg` / `table` 命中。
 - `↑` / `↓` 移动选中项，`Enter` 应用，`Esc` 关闭。
 - 用鼠标点击时用 `onMouseDown` + `preventDefault()`，避免先触发 blur 丢失光标。

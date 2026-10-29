@@ -66,7 +66,7 @@ npm install
 │           ├── env.d.ts        window.api / window.ai / window.settings 类型
 │           ├── index.css       CSS 变量、编辑器样式、滚动条
 │           ├── lib/            纯工具函数
-│           │   ├── blockTypes.tsx
+│           │   ├── blockTypes.ts
 │           │   ├── caret.ts
 │           │   ├── wikiLink.ts
 │           │   └── utils.ts
@@ -120,7 +120,7 @@ import { cn } from '@/lib/utils'
 
 | 想做的事 | 改哪里 |
 | --- | --- |
-| 加一个块类型 | shared 包的 `BlockType` + `renderer/lib/blockTypes.tsx` 的元数据 + `BlockItem.tsx` 的渲染分支 + `main/ai.ts` 的工具 schema（有专门视图的块还要加自己的组件） |
+| 加一个块类型 | shared 包的 `BlockType` + `renderer/lib/blockTypes.ts` 的元数据 + `BlockItem.tsx` 的渲染分支 + `main/ai.ts` 的工具 schema（有专门视图的块还要加自己的组件） |
 | 加一个数据库字段 | 优先扩展 `content` 的 JSON 形状（见 [数据模型](../architecture/data-model.md#演进与迁移)） |
 | 加一个 IPC 能力 | shared 包 → `main/index.ts` → `preload/index.ts`（三处，顺序不能少） |
 | 加一个设置项 | shared 包的 `AppSettings` + `main/settings.ts` 的 `sanitize()` + `SettingsPanel.tsx` |

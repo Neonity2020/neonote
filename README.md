@@ -29,7 +29,9 @@ npm run dev
 | `npm run dev` | 开发模式（热更新） |
 | `npm run build` | 构建产物到 `out/` |
 | `npm start` | 预览构建产物 |
-| `npm run typecheck` | 三处 tsc 类型检查（根 + 两个包） |
+| `npm run typecheck` | 四处 tsc 类型检查（根 + shared + renderer + web） |
+| `npm run lint` | ESLint 检查（`npm run lint:fix` 自动修） |
+| `npm run verify` | 类型检查 + Lint + 文档校验，CI 跑的就是这一套 |
 | `npm run dist` | 打包 Windows 安装包（NSIS / x64） |
 | `npm run dist:mac` | 打包 macOS DMG（arm64 / Apple Silicon） |
 | `npm run docs:check` | 校验文档内部链接与锚点 |
@@ -151,7 +153,7 @@ Electron 主进程读取，不会暴露给渲染进程。
 ### 开发约定
 
 - 代码风格：2 空格缩进、无分号、单引号、尾随逗号（多行）
-- 提交前跑 `npm run typecheck` 与 `npm run docs:check`
+- 提交前跑 `npm run verify`（类型检查 + Lint + 文档校验）
 - 改渲染层热更新；改主进程或 preload 需重启 `npm run dev`
 - 代码注释统一使用英文，文档统一使用简体中文
 
@@ -178,7 +180,9 @@ demonstrates the block types in action.
 | `npm run dev` | Development mode with hot reload |
 | `npm run build` | Build the app into `out/` |
 | `npm start` | Preview the built app |
-| `npm run typecheck` | Run `tsc` across the root project and both packages |
+| `npm run typecheck` | Run `tsc` across the root project, both packages and the web app |
+| `npm run lint` | Run ESLint (`npm run lint:fix` to auto-fix) |
+| `npm run verify` | Typecheck + lint + docs validation — the same gate CI runs |
 | `npm run dist` | Package a Windows installer (NSIS / x64) |
 | `npm run dist:mac` | Package a macOS DMG (arm64 / Apple Silicon) |
 | `npm run docs:check` | Validate internal documentation links and anchors |
@@ -298,7 +302,7 @@ Backing up means copying the whole directory — quit the app first so the WAL i
 ### Development conventions
 
 - Code style: 2-space indent, no semicolons, single quotes, trailing commas on multiline
-- Run `npm run typecheck` and `npm run docs:check` before committing
+- Run `npm run verify` (typecheck + lint + docs validation) before committing
 - Renderer changes hot-reload; main-process and preload changes need `npm run dev` restarted
 - Code comments are written in English; the documentation is written in Simplified Chinese
 
